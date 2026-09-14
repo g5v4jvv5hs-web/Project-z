@@ -466,7 +466,6 @@ async function getOrCreateReferralLink(client, userId, phase) {
 /* =========================================================
    INVOICE (Telegram Stars)
    ========================================================= */
-
 async function createEntryInvoice(userId, phaseId) {
   const nonce = crypto.randomBytes(16).toString('hex');
   const payload = `pz_entry:${phaseId}:${userId}:${nonce}`;
@@ -476,12 +475,18 @@ async function createEntryInvoice(userId, phaseId) {
     description: 'Daily Project Z entry',
     payload,
     currency: 'XTR',
-    prices: [{ label: 'Project Z Entry', amount: ENTRY_STARS }]
+    prices: [
+      {
+        label: 'Project Z Entry',
+        amount: ENTRY_STARS
+      }
+    ]
   });
 
   return { link: result, payload };
 }
-/* =========================================================
+/* 
+=========================================================
    ROUTES
    ========================================================= */
 
