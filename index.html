@@ -842,8 +842,8 @@ function showEntry(){
       throw new Error("Telegram invoice was not created.");
     }
 
-    tg.openInvoice(
-      data.invoice_url,
+    tg.openInvoice(data.invoiceLink,
+    
       function(status){
         if(status === "paid"){
           alert(
