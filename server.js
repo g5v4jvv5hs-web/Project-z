@@ -482,9 +482,6 @@ async function createEntryInvoice(userId, phaseId) {
   return { link: result, payload };
 }
 
-   
-
-
 /* =========================================================
    ROUTES
    ========================================================= */
