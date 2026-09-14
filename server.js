@@ -477,8 +477,10 @@ async function createEntryInvoice(userId, phaseId) {
     payload,
     currency: 'XTR',
     prices: [{ label: 'Project Z Entry', amount: ENTRY_STARS }],
-    provider_token: ''
-  });
+    currency: 'XTR',
+prices: [{ label: 'Project Z Entry', amount: ENTRY_STARS }]
+       
+   
 
   return { link: result, payload };
 }
