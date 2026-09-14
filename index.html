@@ -801,11 +801,73 @@ function showEntry(){
       </div>
     </main>
   `;
-}
-function confirmEntry(){
-  alert(
-    "Demo mode only.\\n\\nNo payment has been taken.\\n\\nThe real Telegram Stars payment system is not connected yet."
-  );
+}async function confirmEntry(){
+  const tg = window.Telegram && Telegram.WebApp
+    ? Telegram.WebApp
+    : null;
+
+  if(!tg){
+    alert("Please open Project Z inside Telegram.");
+    return;
+  }
+
+  if(!tg.initData){
+    alert("Telegram authorization data is missing.");
+    return;
+  }
+
+  try{
+    const response = await fetch(
+      "https://project-z-zryq.onrender.com/api/create-entry-invoice",
+      {
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+          initData:tg.initData
+        })
+      }
+    );
+
+    const data = await response.json();
+
+    if(!response.ok){
+      throw new Error(
+        data.error || "Unable to create payment."
+      );
+    }
+
+    if(!data.invoice_url){
+      throw new Error("Telegram invoice was not created.");
+    }
+
+    tg.openInvoice(
+      data.invoice_url,
+      function(status){
+        if(status === "paid"){
+          alert(
+            "Payment successful!\\n\\nYour Project Z entry has been confirmed."
+          );
+          showHome();
+        }
+        else if(status === "cancelled"){
+          alert("Payment cancelled.");
+        }
+        else if(status === "failed"){
+          alert("Payment failed. Please try again.");
+        }
+      }
+    );
+
+  }catch(error){
+    console.error("Payment error:",error);
+
+    alert(
+      error.message ||
+      "Unable to start Telegram Stars payment."
+    );
+  }
 }
 /* =========================================================
    WALLET
