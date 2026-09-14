@@ -556,11 +556,11 @@
       let val = parseFloat(el.innerText.replace(/[$,]/g,''));
       val += Math.random() * 2.8 + 0.4;
       el.innerText = '$' + val.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-    }, 3500);
-  </script>document.querySelectorAll('.play-btn').forEach(btn => {
+    }, 3500);document.querySelectorAll('.play-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     alert('Welcome to Project Z!');
   });
 });
+  </script>
 </body>
 </html>
