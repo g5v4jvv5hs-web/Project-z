@@ -475,7 +475,7 @@ async function createEntryInvoice(userId, phaseId) {
     title: 'Project Z Entry',
     description: 'Daily Project Z entry',
     payload,currency: 'XTR',
-prices: [{ label: 'Project Z Entry', amount: ENTRY_STARS }]
+prices:});[{ label: 'Project Z Entry', amount: ENTRY_STARS }]
        
    
 
