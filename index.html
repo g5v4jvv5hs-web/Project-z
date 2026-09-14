@@ -4,673 +4,1209 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Project Z</title>
+
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
   <style>
     * {
+      box-sizing: border-box;
       margin: 0;
       padding: 0;
-      box-sizing: border-box;
     }
+
     body {
-      font-family: Arial, sans-serif;
-      background: #030308;
-      color: white;
+      background: #05070d;
+      color: #ffffff;
+      font-family: Arial, Helvetica, sans-serif;
       min-height: 100vh;
       overflow-x: hidden;
+    }
+
+    button {
+      font-family: inherit;
+      border: none;
+      cursor: pointer;
+    }
+
+    #app {
+      min-height: 100vh;
       padding-bottom: 90px;
     }
+
+    /* HEADER */
     .header {
+      height: 70px;
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      padding: 14px 18px;
+      justify-content: space-between;
+      padding: 0 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      background: rgba(5,7,13,0.95);
       position: sticky;
       top: 0;
-      z-index: 100;
-      background: rgba(3,3,8,.94);
-      border-bottom: 1px solid rgba(255,215,0,.12);
+      z-index: 20;
     }
+
     .logo {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .logo-icon {
-      width: 38px;
-      height: 38px;
-      border-radius: 50%;
-      background: linear-gradient(145deg,#ffd700,#ff9500);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #111;
-      font-size: 19px;
+      font-size: 25px;
       font-weight: 900;
-      box-shadow: 0 0 18px rgba(255,190,0,.55);
+      letter-spacing: 2px;
     }
-    .logo-text strong {
-      display: block;
-      font-size: 15px;
-      font-weight: 800;
+
+    .logo span {
+      color: #f5c542;
     }
-    .logo-text span {
-      font-size: 9px;
-      color: #ffd700;
-      letter-spacing: 1px;
-    }
+
     .telegram-badge {
-      background: rgba(0,140,255,.12);
-      border: 1px solid rgba(0,180,255,.35);
-      padding: 6px 11px;
+      background: #18202c;
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 8px 12px;
       border-radius: 20px;
-      font-size: 11px;
-      color: #7dd3fc;
+      font-size: 12px;
+      color: #8ecaff;
     }
+
+    /* GENERAL */
+    .page {
+      padding: 28px 18px;
+      max-width: 600px;
+      margin: auto;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .title {
+      font-size: 38px;
+      font-weight: 900;
+      line-height: 1.05;
+      margin-top: 20px;
+    }
+
+    .title span {
+      color: #f5c542;
+    }
+
+    .subtitle {
+      color: #8992a3;
+      margin-top: 14px;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* HERO */
     .hero {
       text-align: center;
-      padding: 30px 20px 12px;
+      padding: 25px 0;
     }
-    .hero-title {
-      font-size: 30px;
-      font-weight: 900;
-      margin-bottom: 7px;
-      background: linear-gradient(90deg,#fff,#ffd700);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    .hero-subtitle {
-      font-size: 12px;
-      color: #9ca3af;
-      margin-bottom: 22px;
-      letter-spacing: .4px;
-    }
-    .play-btn {
-      background: linear-gradient(90deg,#ffd700,#ff9f00);
-      color: #111;
-      border: none;
-      border-radius: 28px;
-      padding: 14px 32px;
-      font-size: 14px;
-      font-weight: 800;
-      cursor: pointer;
-      box-shadow: 0 0 28px rgba(255,190,0,.45);
-    }
-    .play-btn:active,
-    button:active {
-      transform: scale(.97);
-    }
-    .big-z-wrap {
-      height: 150px;
+
+    .z-symbol {
+      width: 145px;
+      height: 145px;
+      margin: 28px auto;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin: 18px 0 8px;
-    }
-    .big-z {
-      font-size: 135px;
+      font-size: 90px;
       font-weight: 900;
-      background: linear-gradient(180deg,#ffe566,#ffd700,#ff9500);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      filter: drop-shadow(0 0 18px rgba(255,180,0,.7));
+      color: #f5c542;
+      border: 2px solid rgba(245,197,66,0.25);
+      border-radius: 50%;
+      box-shadow:
+        0 0 35px rgba(245,197,66,0.15),
+        inset 0 0 35px rgba(245,197,66,0.05);
     }
+
+    /* BUTTON */
+    .primary-btn {
+      width: 100%;
+      max-width: 360px;
+      padding: 17px 22px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #f5c542, #d89f16);
+      color: #05070d;
+      font-size: 16px;
+      font-weight: 900;
+      margin-top: 22px;
+      box-shadow: 0 10px 30px rgba(245,197,66,0.18);
+    }
+
+    .primary-btn:active {
+      transform: scale(0.98);
+    }
+
+    .secondary-btn {
+      width: 100%;
+      max-width: 360px;
+      padding: 15px;
+      border-radius: 13px;
+      background: #141923;
+      color: #ffffff;
+      border: 1px solid rgba(255,255,255,0.1);
+      font-size: 15px;
+      font-weight: 700;
+      margin-top: 12px;
+    }
+
+    /* POOL */
     .pool-card {
-      margin: 12px 16px 22px;
-      padding: 22px 18px 18px;
+      margin-top: 25px;
+      padding: 24px 20px;
+      border-radius: 20px;
+      background: linear-gradient(145deg, #101c2f, #0b111d);
+      border: 1px solid rgba(83,160,255,0.18);
+      box-shadow: 0 15px 45px rgba(0,0,0,0.25);
       text-align: center;
-      border-radius: 22px;
-      background: linear-gradient(165deg,rgba(8,25,55,.95),rgba(5,12,30,.98));
-      border: 1.5px solid rgba(0,200,255,.45);
-      box-shadow: 0 0 40px rgba(0,160,255,.18);
     }
+
     .pool-label {
-      font-size: 12px;
-      color: #67e8f9;
-      letter-spacing: 2px;
-      margin-bottom: 10px;
-    }
-    .pool-amount {
-      font-size: 40px;
-      font-weight: 900;
-      color: #ffd700;
-      margin-bottom: 5px;
-    }
-    .pool-today {
-      color: #4ade80;
+      color: #7f8da3;
       font-size: 13px;
-      margin-bottom: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
     }
-    .live-info {
-      color: #94a3b8;
-      font-size: 11px;
+
+    .pool-amount {
+      font-size: 36px;
+      font-weight: 900;
+      margin-top: 9px;
+      color: #ffffff;
     }
+
+    .pool-growth {
+      color: #53e08b;
+      margin-top: 8px;
+      font-size: 13px;
+    }
+
+    .live {
+      margin-top: 15px;
+      color: #ff5d67;
+      font-size: 12px;
+    }
+
+    /* COUNTDOWN */
+    .countdown {
+      margin-top: 18px;
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .time-box {
+      background: #0b1019;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      min-width: 62px;
+      padding: 10px 5px;
+    }
+
+    .time-number {
+      font-size: 21px;
+      font-weight: 900;
+    }
+
+    .time-label {
+      color: #737d8e;
+      font-size: 9px;
+      margin-top: 4px;
+      text-transform: uppercase;
+    }
+
+    /* STATS */
+    .section-title {
+      font-size: 20px;
+      font-weight: 800;
+      margin: 32px 0 14px;
+    }
+
     .stats {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 11px;
-      padding: 0 16px 20px;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
     }
-    .stat-card {
-      background: rgba(12,16,35,.85);
-      border: 1px solid rgba(255,255,255,.07);
-      border-radius: 16px;
-      padding: 14px 10px;
-      text-align: center;
+
+    .stat {
+      background: #0d121c;
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 14px;
+      padding: 18px 12px;
     }
-    .stat-icon {
-      font-size: 20px;
-      margin-bottom: 6px;
-    }
-    .stat-label {
-      font-size: 10px;
-      color: #94a3b8;
-      margin-bottom: 4px;
-    }
+
     .stat-value {
-      font-size: 17px;
-      font-weight: 800;
+      font-size: 20px;
+      font-weight: 900;
     }
-    .stat-sub {
-      color: #4ade80;
-      font-size: 10px;
-      margin-top: 2px;
+
+    .stat-label {
+      margin-top: 6px;
+      color: #747e90;
+      font-size: 11px;
     }
+
+    /* FEATURES */
     .features {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 11px;
-      padding: 0 16px 24px;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
     }
+
     .feature {
-      background: rgba(12,16,35,.7);
-      border: 1px solid rgba(255,255,255,.06);
-      border-radius: 15px;
-      padding: 14px 10px;
-      text-align: center;
-    }
-    .feature-icon {
-      font-size: 22px;
-      margin-bottom: 6px;
-    }
-    .feature-title {
-      font-size: 12px;
-      font-weight: 700;
-      margin-bottom: 3px;
-    }
-    .feature-desc {
-      font-size: 10px;
-      color: #94a3b8;
-    }
-    .winners-section {
-      padding: 0 16px 30px;
-    }
-    .section-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 12px;
-    }
-    .section-title {
-      font-size: 14px;
-      font-weight: 700;
-    }
-    .view-all {
-      color: #60a5fa;
-      font-size: 12px;
-      cursor: pointer;
-    }
-    .winner-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      background: rgba(12,16,35,.75);
-      border: 1px solid rgba(255,255,255,.06);
+      background: #0d121c;
       border-radius: 14px;
-      padding: 11px 13px;
-      margin-bottom: 9px;
+      padding: 18px 14px;
+      border: 1px solid rgba(255,255,255,0.06);
     }
-    .winner-avatar {
-      width: 38px;
-      height: 38px;
-      border-radius: 50%;
-      background: linear-gradient(135deg,#6366f1,#a855f7);
+
+    .feature-icon {
+      font-size: 25px;
+      margin-bottom: 10px;
+    }
+
+    .feature-title {
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .feature-text {
+      color: #747e90;
+      font-size: 11px;
+      line-height: 1.5;
+      margin-top: 7px;
+    }
+
+    /* WINNERS */
+    .winner {
       display: flex;
       align-items: center;
-      justify-content: center;
-      font-weight: 800;
+      justify-content: space-between;
+      padding: 15px;
+      background: #0d121c;
+      border-radius: 13px;
+      margin-bottom: 8px;
+      border: 1px solid rgba(255,255,255,0.06);
     }
-    .winner-name {
-      font-size: 13px;
-      font-weight: 600;
-    }
-    .winner-time {
-      font-size: 10px;
-      color: #94a3b8;
-    }
-    .winner-amount {
-      margin-left: auto;
-      color: #4ade80;
+
+    .winner-user {
+      font-weight: 700;
       font-size: 14px;
-      font-weight: 800;
     }
+
+    .winner-time {
+      color: #737d8e;
+      font-size: 11px;
+      margin-top: 4px;
+    }
+
+    .winner-prize {
+      color: #f5c542;
+      font-weight: 900;
+    }
+
+    /* SUB PAGES */
+    .sub-page {
+      padding-top: 25px;
+    }
+
+    .back-btn {
+      background: transparent;
+      color: #9aa4b4;
+      font-size: 14px;
+      padding: 5px 0;
+      margin-bottom: 25px;
+    }
+
+    .big-card {
+      background: #0d121c;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 25px 20px;
+      text-align: center;
+      margin-top: 20px;
+    }
+
+    .entry-price {
+      font-size: 48px;
+      font-weight: 900;
+      color: #f5c542;
+      margin: 15px 0;
+    }
+
+    .info-text {
+      color: #858fa0;
+      line-height: 1.7;
+      font-size: 14px;
+    }
+
+    .wallet-balance {
+      font-size: 44px;
+      font-weight: 900;
+      margin: 20px 0;
+    }
+
+    .ref-code {
+      margin: 20px 0;
+      padding: 15px;
+      background: #080c13;
+      border-radius: 12px;
+      color: #f5c542;
+      font-weight: 800;
+      word-break: break-all;
+    }
+
+    /* NAV */
     .bottom-nav {
       position: fixed;
+      bottom: 0;
       left: 0;
       right: 0;
-      bottom: 0;
+      height: 72px;
+      background: rgba(7,10,16,0.97);
+      border-top: 1px solid rgba(255,255,255,0.08);
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
       z-index: 100;
-      display: flex;
-      justify-content: space-around;
-      padding: 9px 0 18px;
-      background: rgba(6,8,20,.97);
-      border-top: 1px solid rgba(255,255,255,.07);
+      backdrop-filter: blur(12px);
     }
+
     .nav-item {
-      background: none;
-      border: none;
-      color: #94a3b8;
+      background: transparent;
+      color: #687283;
       display: flex;
       flex-direction: column;
+      justify-content: center;
       align-items: center;
-      gap: 3px;
+      gap: 4px;
       font-size: 10px;
-      cursor: pointer;
     }
-    .nav-item.active {
-      color: #ffd700;
-    }
+
     .nav-icon {
       font-size: 20px;
     }
-    .screen {
-      text-align: center;
-      padding: 45px 20px;
+
+    .nav-item.active {
+      color: #f5c542;
     }
-    .screen h2 {
-      font-size: 28px;
-      margin-bottom: 12px;
-    }
-    .screen p {
-      color: #94a3b8;
-      margin-bottom: 25px;
-      font-size: 13px;
-    }
-    .primary-btn {
-      background: linear-gradient(90deg,#ffd700,#ff9f00);
-      color: #111;
-      border: none;
-      border-radius: 26px;
-      padding: 14px 30px;
-      font-weight: 800;
-      font-size: 15px;
-      cursor: pointer;
-    }
-    .secondary-btn {
-      display: block;
-      margin: 15px auto 0;
-      background: transparent;
-      color: #94a3b8;
-      border: 1px solid rgba(255,255,255,.15);
-      border-radius: 22px;
-      padding: 10px 25px;
+
+    /* NOTICE */
+    .notice {
+      background: rgba(245,197,66,0.07);
+      border: 1px solid rgba(245,197,66,0.16);
+      color: #b5ad91;
+      border-radius: 13px;
+      padding: 14px;
+      margin-top: 18px;
       font-size: 12px;
-      cursor: pointer;
+      line-height: 1.6;
     }
   </style>
 </head>
+
 <body>
-  <!-- HEADER -->
-  <div class="header">
-    <div class="logo">
-      <div class="logo-icon">Z</div>
-      <div class="logo-text">
-        <strong>PROJECT Z</strong>
-        <span>PLAY · EARN · WIN</span>
-      </div>
-    </div>
-    <div class="telegram-badge">
-      ✈️ 8.2M+
-    </div>
-  </div>
+
+<div id="app">
+
   <!-- HOME -->
-  <div id="app">
-    <div class="hero">
-      <h1 class="hero-title">
-        PROJECT Z
-      </h1>
-      <p class="hero-subtitle">
-        A NEW DIGITAL ECONOMIC EXPERIENCE ON TELEGRAM
-      </p>
-      <button class="play-btn">
-        PLAY NOW →
+  <div id="homePage">
+
+    <div class="header">
+      <div class="logo">PROJECT <span>Z</span></div>
+      <div class="telegram-badge">TELEGRAM APP</div>
+    </div>
+
+    <div class="page">
+
+      <div class="hero">
+
+        <div class="title">
+          WIN BIG.<br>
+          <span>PLAY FAIR.</span>
+        </div>
+
+        <div class="subtitle">
+          A new generation of community-powered rewards.
+          Simple entry. Transparent system. Big possibilities.
+        </div>
+
+        <div class="z-symbol">Z</div>
+
+        <button class="primary-btn" id="heroPlay">
+          PLAY NOW
+        </button>
+
+      </div>
+
+      <!-- POOL -->
+      <div class="pool-card">
+
+        <div class="pool-label">
+          LIVE PRIZE POOL
+        </div>
+
+        <div class="pool-amount" id="poolAmount">
+          $248,632.17
+        </div>
+
+        <div class="pool-growth">
+          +$12,487.32 TODAY
+        </div>
+
+        <div class="live">
+          ● LIVE NOW
+        </div>
+
+        <div class="countdown">
+
+          <div class="time-box">
+            <div class="time-number" id="hours">05</div>
+            <div class="time-label">Hours</div>
+          </div>
+
+          <div class="time-box">
+            <div class="time-number" id="minutes">42</div>
+            <div class="time-label">Minutes</div>
+          </div>
+
+          <div class="time-box">
+            <div class="time-number" id="seconds">17</div>
+            <div class="time-label">Seconds</div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- STATS -->
+      <div class="section-title">
+        Platform Stats
+      </div>
+
+      <div class="stats">
+
+        <div class="stat">
+          <div class="stat-value">842,631</div>
+          <div class="stat-label">TOTAL USERS</div>
+        </div>
+
+        <div class="stat">
+          <div class="stat-value">$248K+</div>
+          <div class="stat-label">PRIZE POOL</div>
+        </div>
+
+        <div class="stat">
+          <div class="stat-value">$2</div>
+          <div class="stat-label">DAILY ENTRY</div>
+        </div>
+
+        <div class="stat">
+          <div class="stat-value" id="nextDraw">05:42:17</div>
+          <div class="stat-label">NEXT DRAW</div>
+        </div>
+
+      </div>
+
+      <!-- FEATURES -->
+      <div class="section-title">
+        Why Project Z?
+      </div>
+
+      <div class="features">
+
+        <div class="feature">
+          <div class="feature-icon">🏆</div>
+          <div class="feature-title">Win Big</div>
+          <div class="feature-text">
+            Join daily draws with a simple entry.
+          </div>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">🔎</div>
+          <div class="feature-title">Transparent</div>
+          <div class="feature-text">
+            Clear rules and visible prize information.
+          </div>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">⚡</div>
+          <div class="feature-title">Fast & Easy</div>
+          <div class="feature-text">
+            Designed specifically for Telegram.
+          </div>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">👥</div>
+          <div class="feature-title">Refer & Earn</div>
+          <div class="feature-text">
+            Invite friends and participate together.
+          </div>
+        </div>
+
+      </div>
+
+      <!-- WINNERS -->
+      <div class="section-title">
+        Latest Winners
+      </div>
+
+      <div class="winner">
+        <div>
+          <div class="winner-user">User •••4821</div>
+          <div class="winner-time">2 minutes ago</div>
+        </div>
+        <div class="winner-prize">+$1,240</div>
+      </div>
+
+      <div class="winner">
+        <div>
+          <div class="winner-user">User •••9137</div>
+          <div class="winner-time">7 minutes ago</div>
+        </div>
+        <div class="winner-prize">+$860</div>
+      </div>
+
+      <div class="winner">
+        <div>
+          <div class="winner-user">User •••2754</div>
+          <div class="winner-time">14 minutes ago</div>
+        </div>
+        <div class="winner-prize">+$2,450</div>
+      </div>
+
+      <button
+        class="secondary-btn"
+        onclick="alert('Winner history will be connected to the backend.')">
+        VIEW ALL WINNERS
       </button>
-      <div class="big-z-wrap">
-        <div class="big-z">Z</div>
-      </div>
-    </div>
-    <!-- POOL -->
-    <div class="pool-card">
-      <div class="pool-label">
-        ◆ TOTAL POOL
-      </div>
-      <div class="pool-amount" id="poolAmount">
-        $248,632.17
-      </div>
-      <div class="pool-today">
-        +$12,487.32 Today
-      </div>
-      <div class="live-info">
-        🟢 Live · 1,284 users joined
-      </div>
-    </div>
-    <!-- STATS -->
-    <div class="stats">
-      <div class="stat-card">
-        <div class="stat-icon">👥</div>
-        <div class="stat-label">TOTAL USERS</div>
-        <div class="stat-value">842,631</div>
-        <div class="stat-sub">+12.4K today</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon">🏆</div>
-        <div class="stat-label">PRIZE POOL</div>
-        <div class="stat-value">$248,632</div>
-        <div class="stat-sub">+$12.5K today</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon">⚡</div>
-        <div class="stat-label">DAILY PHASE</div>
-        <div class="stat-value">$2</div>
-        <div class="stat-sub">per entry</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon">⏱️</div>
-        <div class="stat-label">NEXT DRAW</div>
-        <div class="stat-value" id="countdown">05:42:17</div>
-        <div class="stat-sub">H · M · S</div>
-      </div>
-    </div>
-    <!-- FEATURES -->
-    <div class="features">
-      <div class="feature">
-        <div class="feature-icon">🎁</div>
-        <div class="feature-title">WIN BIG</div>
-        <div class="feature-desc">Real rewards</div>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">🛡️</div>
-        <div class="feature-title">FAIR & TRANSPARENT</div>
-        <div class="feature-desc">On-chain verification</div>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">⚡</div>
-        <div class="feature-title">FAST & EASY</div>
-        <div class="feature-desc">Play in seconds</div>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">👥</div>
-        <div class="feature-title">REFER & EARN</div>
-        <div class="feature-desc">Invite your friends</div>
-      </div>
-    </div>
-    <!-- WINNERS -->
-    <div class="winners-section">
-      <div class="section-header">
-        <div class="section-title">
-          🏆 LATEST WINNERS
-        </div>
-        <div class="view-all" id="viewAll">
-          View All →
-        </div>
-      </div>
-      <div class="winner-item">
-        <div class="winner-avatar">C</div>
-        <div>
-          <div class="winner-name">@CryptoKing</div>
-          <div class="winner-time">Just now</div>
-        </div>
-        <div class="winner-amount">
-          $12.50
-        </div>
-      </div>
-      <div class="winner-item">
-        <div class="winner-avatar">Z</div>
-        <div>
-          <div class="winner-name">@ZenaTrader</div>
-          <div class="winner-time">2 min ago</div>
-        </div>
-        <div class="winner-amount">
-          $8.00
-        </div>
-      </div>
-      <div class="winner-item">
-        <div class="winner-avatar">B</div>
-        <div>
-          <div class="winner-name">@BitSoul</div>
-          <div class="winner-time">4 min ago</div>
-        </div>
-        <div class="winner-amount">
-          $15.75
-        </div>
-      </div>
+
     </div>
   </div>
+
+
   <!-- BOTTOM NAV -->
+
   <div class="bottom-nav">
+
     <button class="nav-item active" data-page="home">
-      <div class="nav-icon">🏠</div>
-      <span>Home</span>
+      <div class="nav-icon">⌂</div>
+      <div>Home</div>
     </button>
+
     <button class="nav-item" data-page="play">
-      <div class="nav-icon">🎮</div>
-      <span>Play</span>
+      <div class="nav-icon">▶</div>
+      <div>Play</div>
     </button>
+
     <button class="nav-item" data-page="wallet">
-      <div class="nav-icon">💼</div>
-      <span>Wallet</span>
+      <div class="nav-icon">◉</div>
+      <div>Wallet</div>
     </button>
+
     <button class="nav-item" data-page="referral">
-      <div class="nav-icon">👥</div>
-      <span>Referral</span>
+      <div class="nav-icon">♧</div>
+      <div>Referral</div>
     </button>
+
     <button class="nav-item" data-page="more">
-      <div class="nav-icon">⋯</div>
-      <span>More</span>
+      <div class="nav-icon">☰</div>
+      <div>More</div>
     </button>
+
   </div>
-  <script>
-    /* TELEGRAM */
-    if (window.Telegram && window.Telegram.WebApp) {
-      Telegram.WebApp.ready();
-      Telegram.WebApp.expand();
-    }
-    /* COUNTDOWN */
-    let totalSeconds = 5 * 3600 + 42 * 60 + 17;
-    setInterval(() => {
-      if (totalSeconds <= 0) {
-        totalSeconds = 5 * 3600 + 42 * 60 + 17;
+
+</div>
+
+
+<script>
+
+  /* TELEGRAM */
+
+  if (window.Telegram && Telegram.WebApp) {
+    Telegram.WebApp.ready();
+    Telegram.WebApp.expand();
+  }
+
+
+  /* HELPERS */
+
+  function setActiveNav(pageName) {
+
+    document.querySelectorAll(".nav-item").forEach(function(item) {
+
+      item.classList.remove("active");
+
+      if (item.dataset.page === pageName) {
+        item.classList.add("active");
       }
-      totalSeconds--;
-      const h = Math.floor(totalSeconds / 3600);
-      const m = Math.floor((totalSeconds % 3600) / 60);
-      const s = totalSeconds % 60;
-      const countdown = document.getElementById("countdown");
-      if (countdown) {
-        countdown.innerText =
-          String(h).padStart(2,"0") + ":" +
-          String(m).padStart(2,"0") + ":" +
-          String(s).padStart(2,"0");
-      }
-    },1000);
-    /* LIVE POOL */
-    setInterval(() => {
-      const pool = document.getElementById("poolAmount");
-      if (!pool) return;
-      let value =
-        parseFloat(pool.innerText.replace(/[$,]/g,""));
-      value += Math.random() * 2.8 + 0.4;
-      pool.innerText =
-        "$" + value.toLocaleString("en-US",{
-          minimumFractionDigits:2,
-          maximumFractionDigits:2
-        });
-    },3500);
-    /* HOME */
-    function showHome() {
-      location.reload();
-    }
-    /* PLAY PAGE */
-    function showPlay() {
-      document.getElementById("app").innerHTML = `
-        <div class="screen">
-          <h2>🎮 PROJECT Z</h2>
-          <p>
-            Choose your entry
-          </p>
-          <button
-            class="primary-btn"
-            id="dailyEntry">
-            $2 DAILY ENTRY
-          </button>
-          <button
-            class="secondary-btn"
-            id="playBack">
-            ← BACK
-          </button>
+
+    });
+
+  }
+
+
+  function showHome() {
+
+    location.reload();
+
+  }
+
+
+  /* PLAY PAGE */
+
+  function showPlay() {
+
+    setActiveNav("play");
+
+    document.getElementById("app").innerHTML = `
+
+      <div class="header">
+        <div class="logo">PROJECT <span>Z</span></div>
+        <div class="telegram-badge">PLAY</div>
+      </div>
+
+      <div class="page sub-page">
+
+        <button class="back-btn" onclick="showHome()">
+          ← BACK
+        </button>
+
+        <div class="title">
+          CHOOSE YOUR<br>
+          <span>ENTRY</span>
         </div>
-      `;
-      document
-        .getElementById("dailyEntry")
-        .addEventListener("click",showEntry);
-      document
-        .getElementById("playBack")
-        .addEventListener("click",showHome);
-    }
-    /* ENTRY CONFIRMATION */
-    function showEntry() {
-      document.getElementById("app").innerHTML = `
-        <div class="screen">
-          <h2>🎟️ DAILY ENTRY</h2>
-          <p>
-            Entry price
-          </p>
-          <div style="
-            font-size:48px;
-            font-weight:900;
-            color:#ffd700;
-            margin-bottom:15px;
-          ">
+
+        <div class="subtitle">
+          Select an entry option and join the current Project Z phase.
+        </div>
+
+        <div class="big-card">
+
+          <div class="pool-label">
+            DAILY ENTRY
+          </div>
+
+          <div class="entry-price">
             $2
           </div>
-          <p>
-            Confirm your entry for today's
-            Project Z phase.
-          </p>
+
+          <div class="info-text">
+            One daily entry gives you access to the current draw.
+            Payment will be processed securely through Telegram.
+          </div>
+
+          <button class="primary-btn" onclick="showEntry()">
+            $2 DAILY ENTRY
+          </button>
+
+          <button class="secondary-btn" onclick="showHome()">
+            BACK
+          </button>
+
+        </div>
+
+        <div class="notice">
+          Demo mode: payment is not connected yet.
+          The Telegram Stars payment system will be connected in the next stage.
+        </div>
+
+      </div>
+
+      <div class="bottom-nav">
+
+        <button class="nav-item" onclick="showHome()">
+          <div class="nav-icon">⌂</div>
+          <div>Home</div>
+        </button>
+
+        <button class="nav-item active">
+          <div class="nav-icon">▶</div>
+          <div>Play</div>
+        </button>
+
+        <button class="nav-item" onclick="showWallet()">
+          <div class="nav-icon">◉</div>
+          <div>Wallet</div>
+        </button>
+
+        <button class="nav-item" onclick="showReferral()">
+          <div class="nav-icon">♧</div>
+          <div>Referral</div>
+        </button>
+
+        <button class="nav-item" onclick="showMore()">
+          <div class="nav-icon">☰</div>
+          <div>More</div>
+        </button>
+
+      </div>
+    `;
+
+  }
+
+
+  /* ENTRY CONFIRMATION */
+
+  function showEntry() {
+
+    document.getElementById("app").innerHTML = `
+
+      <div class="header">
+        <div class="logo">PROJECT <span>Z</span></div>
+        <div class="telegram-badge">ENTRY</div>
+      </div>
+
+      <div class="page sub-page">
+
+        <button class="back-btn" onclick="showPlay()">
+          ← BACK
+        </button>
+
+        <div class="title">
+          CONFIRM<br>
+          <span>ENTRY</span>
+        </div>
+
+        <div class="big-card">
+
+          <div class="pool-label">
+            ENTRY PRICE
+          </div>
+
+          <div class="entry-price">
+            $2
+          </div>
+
+          <div class="info-text">
+            You are about to enter the current daily Project Z phase.
+            Your payment will be processed through Telegram Stars once
+            the payment system is connected.
+          </div>
+
           <button
             class="primary-btn"
-            id="confirmEntry">
+            onclick="confirmPayment()">
             CONFIRM ENTRY
           </button>
+
           <button
             class="secondary-btn"
-            id="entryBack">
-            ← BACK
+            onclick="showPlay()">
+            BACK
           </button>
+
         </div>
-      `;
-      document
-        .getElementById("confirmEntry")
-        .addEventListener("click",() => {
-          alert(
-            "Payment system will be connected next."
-          );
-        });
-      document
-        .getElementById("entryBack")
-        .addEventListener("click",showPlay);
+
+        <div class="notice">
+          No money will be charged in this demo version.
+        </div>
+
+      </div>
+
+    `;
+
+  }
+
+
+  /* PAYMENT PLACEHOLDER */
+
+  function confirmPayment() {
+
+    alert(
+      "Payment system is not connected yet.\\n\\nNext step: Telegram Stars payment integration."
+    );
+
+  }
+
+
+  /* WALLET */
+
+  function showWallet() {
+
+    setActiveNav("wallet");
+
+    document.getElementById("app").innerHTML = `
+
+      <div class="header">
+        <div class="logo">PROJECT <span>Z</span></div>
+        <div class="telegram-badge">WALLET</div>
+      </div>
+
+      <div class="page sub-page">
+
+        <button class="back-btn" onclick="showHome()">
+          ← BACK
+        </button>
+
+        <div class="title">
+          YOUR<br>
+          <span>WALLET</span>
+        </div>
+
+        <div class="big-card">
+
+          <div class="pool-label">
+            CURRENT BALANCE
+          </div>
+
+          <div class="wallet-balance">
+            $0.00
+          </div>
+
+          <div class="info-text">
+            Your balance, deposits and withdrawals will appear here
+            after the wallet system is connected.
+          </div>
+
+          <button
+            class="primary-btn"
+            onclick="alert('Wallet system coming next.')">
+            CONNECT WALLET
+          </button>
+
+        </div>
+
+      </div>
+
+      <div class="bottom-nav">
+
+        <button class="nav-item" onclick="showHome()">
+          <div class="nav-icon">⌂</div>
+          <div>Home</div>
+        </button>
+
+        <button class="nav-item" onclick="showPlay()">
+          <div class="nav-icon">▶</div>
+          <div>Play</div>
+        </button>
+
+        <button class="nav-item active">
+          <div class="nav-icon">◉</div>
+          <div>Wallet</div>
+        </button>
+
+        <button class="nav-item" onclick="showReferral()">
+          <div class="nav-icon">♧</div>
+          <div>Referral</div>
+        </button>
+
+        <button class="nav-item" onclick="showMore()">
+          <div class="nav-icon">☰</div>
+          <div>More</div>
+        </button>
+
+      </div>
+
+    `;
+
+  }
+
+
+  /* REFERRAL */
+
+  function showReferral() {
+
+    setActiveNav("referral");
+
+    document.getElementById("app").innerHTML = `
+
+      <div class="header">
+        <div class="logo">PROJECT <span>Z</span></div>
+        <div class="telegram-badge">REFERRAL</div>
+      </div>
+
+      <div class="page sub-page">
+
+        <button class="back-btn" onclick="showHome()">
+          ← BACK
+        </button>
+
+        <div class="title">
+          REFER &<br>
+          <span>EARN</span>
+        </div>
+
+        <div class="subtitle">
+          Invite friends and build your Project Z network.
+        </div>
+
+        <div class="big-card">
+
+          <div class="pool-label">
+            YOUR REFERRAL LINK
+          </div>
+
+          <div class="ref-code">
+            t.me/ProjectZBot?start=USER123
+          </div>
+
+          <div class="info-text">
+            Referral rewards will be activated when the backend
+            and referral system are connected.
+          </div>
+
+          <button
+            class="primary-btn"
+            onclick="copyReferral()">
+            COPY LINK
+          </button>
+
+        </div>
+
+      </div>
+
+      <div class="bottom-nav">
+
+        <button class="nav-item" onclick="showHome()">
+          <div class="nav-icon">⌂</div>
+          <div>Home</div>
+        </button>
+
+        <button class="nav-item" onclick="showPlay()">
+          <div class="nav-icon">▶</div>
+          <div>Play</div>
+        </button>
+
+        <button class="nav-item" onclick="showWallet()">
+          <div class="nav-icon">◉</div>
+          <div>Wallet</div>
+        </button>
+
+        <button class="nav-item active">
+          <div class="nav-icon">♧</div>
+          <div>Referral</div>
+        </button>
+
+        <button class="nav-item" onclick="showMore()">
+          <div class="nav-icon">☰</div>
+          <div>More</div>
+        </button>
+
+      </div>
+
+    `;
+
+  }
+
+
+  function copyReferral() {
+
+    navigator.clipboard.writeText(
+      "https://t.me/ProjectZBot?start=USER123"
+    );
+
+    alert("Referral link copied.");
+
+  }
+
+
+  /* MORE */
+
+  function showMore() {
+
+    setActiveNav("more");
+
+    document.getElementById("app").innerHTML = `
+
+      <div class="header">
+        <div class="logo">PROJECT <span>Z</span></div>
+        <div class="telegram-badge">MORE</div>
+      </div>
+
+      <div class="page sub-page">
+
+        <button class="back-btn" onclick="showHome()">
+          ← BACK
+        </button>
+
+        <div class="title">
+          PROJECT<br>
+          <span>Z</span>
+        </div>
+
+        <div class="big-card">
+
+          <div class="section-title" style="margin-top:0;">
+            About Project Z
+          </div>
+
+          <div class="info-text">
+            Project Z is a Telegram-native platform concept
+            designed around simple participation, transparent
+            information and community rewards.
+          </div>
+
+          <button
+            class="secondary-btn"
+            onclick="alert('Terms will be added here.')">
+            TERMS & CONDITIONS
+          </button>
+
+          <button
+            class="secondary-btn"
+            onclick="alert('Privacy Policy will be added here.')">
+            PRIVACY POLICY
+          </button>
+
+          <button
+            class="secondary-btn"
+            onclick="alert('Support system will be connected later.')">
+            SUPPORT
+          </button>
+
+        </div>
+
+      </div>
+
+      <div class="bottom-nav">
+
+        <button class="nav-item" onclick="showHome()">
+          <div class="nav-icon">⌂</div>
+          <div>Home</div>
+        </button>
+
+        <button class="nav-item" onclick="showPlay()">
+          <div class="nav-icon">▶</div>
+          <div>Play</div>
+        </button>
+
+        <button class="nav-item" onclick="showWallet()">
+          <div class="nav-icon">◉</div>
+          <div>Wallet</div>
+        </button>
+
+        <button class="nav-item" onclick="showReferral()">
+          <div class="nav-icon">♧</div>
+          <div>Referral</div>
+        </button>
+
+        <button class="nav-item active">
+          <div class="nav-icon">☰</div>
+          <div>More</div>
+        </button>
+
+      </div>
+
+    `;
+
+  }
+
+
+  /* NAVIGATION */
+
+  document.addEventListener("click", function(event) {
+
+    const nav = event.target.closest(".nav-item");
+
+    if (!nav) return;
+
+    const page = nav.dataset.page;
+
+    if (page === "home") {
+      showHome();
     }
-    /* NAVIGATION */
-    document.querySelectorAll(".nav-item")
-      .forEach(item => {
-        item.addEventListener("click",() => {
-          document
-            .querySelectorAll(".nav-item")
-            .forEach(nav => {
-              nav.classList.remove("active");
-            });
-          item.classList.add("active");
-          const page =
-            item.getAttribute("data-page");
-          if (page === "home") {
-            showHome();
-          }
-          if (page === "play") {
-            showPlay();
-          }
-          if (page === "wallet") {
-            document.getElementById("app").innerHTML = `
-              <div class="screen">
-                <h2>💼 WALLET</h2>
-                <p>
-                  Your Project Z wallet
-                  will appear here.
-                </p>
-                <button
-                  class="secondary-btn"
-                  onclick="showHome()">
-                  ← HOME
-                </button>
-              </div>
-            `;
-          }
-          if (page === "referral") {
-            document.getElementById("app").innerHTML = `
-              <div class="screen">
-                <h2>👥 REFERRAL</h2>
-                <p>
-                  Invite friends and earn rewards.
-                </p>
-                <button
-                  class="primary-btn"
-                  onclick="alert('Referral system will be connected next.')">
-                  INVITE FRIENDS
-                </button>
-                <button
-                  class="secondary-btn"
-                  onclick="showHome()">
-                  ← HOME
-                </button>
-              </div>
-            `;
-          }
-          if (page === "more") {
-            document.getElementById("app").innerHTML = `
-              <div class="screen">
-                <h2>⋯ MORE</h2>
-                <p>
-                  More Project Z options
-                  will appear here.
-                </p>
-                <button
-                  class="secondary-btn"
-                  onclick="showHome()">
-                  ← HOME
-                </button>
-              </div>
-            `;
-          }
-        });
+
+    if (page === "play") {
+      showPlay();
+    }
+
+    if (page === "wallet") {
+      showWallet();
+    }
+
+    if (page === "referral") {
+      showReferral();
+    }
+
+    if (page === "more") {
+      showMore();
+    }
+
+  });
+
+
+  /* HERO PLAY */
+
+  document.addEventListener("click", function(event) {
+
+    if (event.target.id === "heroPlay") {
+      showPlay();
+    }
+
+  });
+
+
+  /* COUNTDOWN */
+
+  let totalSeconds = 5 * 60 * 60 + 42 * 60 + 17;
+
+  function updateCountdown() {
+
+    if (totalSeconds <= 0) {
+      totalSeconds = 6 * 60 * 60;
+    }
+
+    const h = Math.floor(totalSeconds / 3600);
+
+    const m = Math.floor(
+      (totalSeconds % 3600) / 60
+    );
+
+    const s = totalSeconds % 60;
+
+    const hours = String(h).padStart(2, "0");
+    const minutes = String(m).padStart(2, "0");
+    const seconds = String(s).padStart(2, "0");
+
+    const hourEl = document.getElementById("hours");
+    const minuteEl = document.getElementById("minutes");
+    const secondEl = document.getElementById("seconds");
+    const nextDrawEl = document.getElementById("nextDraw");
+
+    if (hourEl) hourEl.textContent = hours;
+    if (minuteEl) minuteEl.textContent = minutes;
+    if (secondEl) secondEl.textContent = seconds;
+
+    if (nextDrawEl) {
+      nextDrawEl.textContent =
+        hours + ":" + minutes + ":" + seconds;
+    }
+
+    totalSeconds--;
+
+  }
+
+  updateCountdown();
+
+  setInterval(updateCountdown, 1000);
+
+
+  /* LIVE POOL */
+
+  setInterval(function() {
+
+    const pool = document.getElementById("poolAmount");
+
+    if (!pool) return;
+
+    let value = parseFloat(
+      pool.textContent.replace(/[$,]/g, "")
+    );
+
+    value += Math.random() * 2.8 + 0.4;
+
+    pool.textContent =
+      "$" +
+      value.toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
       });
-    /* HERO PLAY BUTTON */
-    document
-      .querySelector(".play-btn")
-      .addEventListener("click",showPlay);
-    /* VIEW ALL */
-    document
-      .getElementById("viewAll")
-      .addEventListener("click",() => {
-        alert("All winners will be available here.");
-      });
-  </script>
+
+  }, 3500);
+
+</script>
+
 </body>
 </html>
