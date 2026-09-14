@@ -558,9 +558,19 @@
       el.innerText = '$' + val.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
     }, 3500);document.querySelectorAll('.play-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    alert('Welcome to Project Z!');
-  });
-});
+    adocument.querySelector('.hero').innerHTML = `
+  <div style="padding:30px 20px;text-align:center;">
+    <h2 style="font-size:28px;margin-bottom:12px;">🎮 PROJECT Z</h2>
+    <p style="color:#94a3b8;margin-bottom:25px;">Choose your entry</p>
+
+    <button onclick="alert('Daily entry selected')"
+      style="background:linear-gradient(90deg,#ffd700,#ff9f00);
+      border:none;border-radius:25px;padding:14px 30px;
+      font-weight:800;font-size:15px;">
+      $2 DAILY ENTRY
+    </button>
+  </div>
+`;
   </script>
 </body>
 </html>
