@@ -111,3 +111,11 @@ app.post("/api/test-entry", (req, res) => {
 app.listen(PORT, () => {
   console.log(`Project Z running on port ${PORT}`);
 });
+if (BOT_TOKEN) {
+  const webhookUrl = `https://project-z-zryq.onrender.com/telegram/${BOT_TOKEN}`;
+
+  fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook?url=${encodeURIComponent(webhookUrl)}`)
+    .then(response => response.json())
+    .then(data => console.log("Webhook:", data))
+    .catch(error => console.error("Webhook error:", error));
+}
