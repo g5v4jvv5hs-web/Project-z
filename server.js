@@ -474,10 +474,7 @@ async function createEntryInvoice(userId, phaseId) {
   const result = await telegramApi('createInvoiceLink', {
     title: 'Project Z Entry',
     description: 'Daily Project Z entry',
-    payload,
-    currency: 'XTR',
-    prices: [{ label: 'Project Z Entry', amount: ENTRY_STARS }],
-    currency: 'XTR',
+    payload,currency: 'XTR',
 prices: [{ label: 'Project Z Entry', amount: ENTRY_STARS }]
        
    
