@@ -1,29 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Project Z</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
     }
-
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: Arial, sans-serif;
       background: #030308;
-      color: #ffffff;
+      color: white;
       min-height: 100vh;
       overflow-x: hidden;
-      padding-bottom: 85px;
+      padding-bottom: 90px;
     }
-
-    /* Header */
     .header {
       display: flex;
       justify-content: space-between;
@@ -31,368 +26,300 @@
       padding: 14px 18px;
       position: sticky;
       top: 0;
-      background: rgba(3, 3, 8, 0.92);
-      backdrop-filter: blur(14px);
       z-index: 100;
-      border-bottom: 1px solid rgba(255, 190, 0, 0.12);
+      background: rgba(3,3,8,.94);
+      border-bottom: 1px solid rgba(255,215,0,.12);
     }
-
     .logo {
       display: flex;
       align-items: center;
       gap: 10px;
     }
-
     .logo-icon {
-      width: 36px;
-      height: 36px;
+      width: 38px;
+      height: 38px;
       border-radius: 50%;
-      background: linear-gradient(145deg, #ffd700, #ff9500);
+      background: linear-gradient(145deg,#ffd700,#ff9500);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 900;
-      font-size: 18px;
       color: #111;
-      box-shadow: 0 0 18px rgba(255, 190, 0, 0.55);
+      font-size: 19px;
+      font-weight: 900;
+      box-shadow: 0 0 18px rgba(255,190,0,.55);
     }
-
     .logo-text strong {
+      display: block;
       font-size: 15px;
       font-weight: 800;
-      letter-spacing: 0.3px;
-      display: block;
     }
-
     .logo-text span {
       font-size: 9px;
       color: #ffd700;
-      letter-spacing: 1.2px;
-      font-weight: 600;
+      letter-spacing: 1px;
     }
-
     .telegram-badge {
-      background: rgba(0, 140, 255, 0.12);
-      border: 1px solid rgba(0, 180, 255, 0.35);
-      padding: 5px 11px;
+      background: rgba(0,140,255,.12);
+      border: 1px solid rgba(0,180,255,.35);
+      padding: 6px 11px;
       border-radius: 20px;
       font-size: 11px;
-      display: flex;
-      align-items: center;
-      gap: 5px;
       color: #7dd3fc;
     }
-
-    /* Hero */
     .hero {
       text-align: center;
-      padding: 28px 20px 10px;
+      padding: 30px 20px 12px;
     }
-
     .hero-title {
       font-size: 30px;
       font-weight: 900;
-      background: linear-gradient(90deg, #ffffff 30%, #ffd700);
+      margin-bottom: 7px;
+      background: linear-gradient(90deg,#fff,#ffd700);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
-      margin-bottom: 6px;
     }
-
     .hero-subtitle {
       font-size: 12px;
       color: #9ca3af;
       margin-bottom: 22px;
-      letter-spacing: 0.4px;
+      letter-spacing: .4px;
     }
-
     .play-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: linear-gradient(90deg, #ffd700, #ff9f00);
+      background: linear-gradient(90deg,#ffd700,#ff9f00);
       color: #111;
-      font-weight: 800;
-      font-size: 14px;
-      padding: 13px 30px;
-      border-radius: 28px;
       border: none;
+      border-radius: 28px;
+      padding: 14px 32px;
+      font-size: 14px;
+      font-weight: 800;
       cursor: pointer;
-      box-shadow: 0 0 28px rgba(255, 190, 0, 0.45);
+      box-shadow: 0 0 28px rgba(255,190,0,.45);
     }
-
-    .play-btn:active {
-      transform: scale(0.97);
+    .play-btn:active,
+    button:active {
+      transform: scale(.97);
     }
-
-    /* Big glowing Z */
     .big-z-wrap {
-      position: relative;
-      margin: 18px 0 8px;
       height: 150px;
       display: flex;
       align-items: center;
       justify-content: center;
+      margin: 18px 0 8px;
     }
-
     .big-z {
       font-size: 135px;
       font-weight: 900;
-      background: linear-gradient(180deg, #ffe566 10%, #ffd700 40%, #ff9500 90%);
+      background: linear-gradient(180deg,#ffe566,#ffd700,#ff9500);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
-      filter: drop-shadow(0 0 18px rgba(255, 180, 0, 0.7));
-      line-height: 1;
+      filter: drop-shadow(0 0 18px rgba(255,180,0,.7));
     }
-
-    /* TOTAL POOL - main focus */
     .pool-card {
       margin: 12px 16px 22px;
-      background: linear-gradient(165deg, rgba(8, 25, 55, 0.95), rgba(5, 12, 30, 0.98));
-      border: 1.5px solid rgba(0, 200, 255, 0.45);
-      border-radius: 22px;
       padding: 22px 18px 18px;
       text-align: center;
-      position: relative;
-      box-shadow: 
-        0 0 40px rgba(0, 160, 255, 0.18),
-        inset 0 0 25px rgba(0, 120, 255, 0.08);
-      overflow: hidden;
+      border-radius: 22px;
+      background: linear-gradient(165deg,rgba(8,25,55,.95),rgba(5,12,30,.98));
+      border: 1.5px solid rgba(0,200,255,.45);
+      box-shadow: 0 0 40px rgba(0,160,255,.18);
     }
-
-    .pool-card::after {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(0, 220, 255, 0.6), transparent);
-    }
-
     .pool-label {
       font-size: 12px;
       color: #67e8f9;
-      letter-spacing: 2.5px;
-      font-weight: 600;
+      letter-spacing: 2px;
       margin-bottom: 10px;
     }
-
     .pool-amount {
       font-size: 40px;
       font-weight: 900;
-      background: linear-gradient(90deg, #fff7c2, #ffd700, #ffb700);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      letter-spacing: -1px;
-      margin-bottom: 4px;
+      color: #ffd700;
+      margin-bottom: 5px;
     }
-
     .pool-today {
-      font-size: 13px;
       color: #4ade80;
-      font-weight: 600;
+      font-size: 13px;
       margin-bottom: 14px;
     }
-
     .live-info {
-      font-size: 11px;
       color: #94a3b8;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 7px;
+      font-size: 11px;
     }
-
-    .live-dot {
-      width: 7px;
-      height: 7px;
-      background: #22c55e;
-      border-radius: 50%;
-      box-shadow: 0 0 8px #22c55e;
-      animation: pulse 1.4s infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.45; transform: scale(0.85); }
-    }
-
-    /* Stats */
     .stats {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 11px;
       padding: 0 16px 20px;
     }
-
     .stat-card {
-      background: rgba(12, 16, 35, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.07);
+      background: rgba(12,16,35,.85);
+      border: 1px solid rgba(255,255,255,.07);
       border-radius: 16px;
       padding: 14px 10px;
       text-align: center;
     }
-
     .stat-icon {
       font-size: 20px;
       margin-bottom: 6px;
     }
-
     .stat-label {
       font-size: 10px;
       color: #94a3b8;
-      letter-spacing: 0.6px;
-      margin-bottom: 3px;
+      margin-bottom: 4px;
     }
-
     .stat-value {
       font-size: 17px;
       font-weight: 800;
     }
-
     .stat-sub {
-      font-size: 10px;
       color: #4ade80;
+      font-size: 10px;
       margin-top: 2px;
     }
-
-    /* Features */
     .features {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 11px;
       padding: 0 16px 24px;
     }
-
     .feature {
-      background: rgba(12, 16, 35, 0.7);
-      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(12,16,35,.7);
+      border: 1px solid rgba(255,255,255,.06);
       border-radius: 15px;
       padding: 14px 10px;
       text-align: center;
     }
-
     .feature-icon {
       font-size: 22px;
       margin-bottom: 6px;
     }
-
     .feature-title {
       font-size: 12px;
       font-weight: 700;
       margin-bottom: 3px;
     }
-
     .feature-desc {
       font-size: 10px;
       color: #94a3b8;
     }
-
-    /* Winners */
     .winners-section {
       padding: 0 16px 30px;
     }
-
     .section-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 12px;
     }
-
     .section-title {
       font-size: 14px;
       font-weight: 700;
     }
-
     .view-all {
-      font-size: 12px;
       color: #60a5fa;
+      font-size: 12px;
+      cursor: pointer;
     }
-
     .winner-item {
       display: flex;
       align-items: center;
       gap: 12px;
-      background: rgba(12, 16, 35, 0.75);
-      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(12,16,35,.75);
+      border: 1px solid rgba(255,255,255,.06);
       border-radius: 14px;
       padding: 11px 13px;
       margin-bottom: 9px;
     }
-
     .winner-avatar {
       width: 38px;
       height: 38px;
       border-radius: 50%;
-      background: linear-gradient(135deg, #6366f1, #a855f7);
+      background: linear-gradient(135deg,#6366f1,#a855f7);
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: 800;
-      font-size: 15px;
     }
-
     .winner-name {
       font-size: 13px;
       font-weight: 600;
     }
-
     .winner-time {
       font-size: 10px;
       color: #94a3b8;
     }
-
     .winner-amount {
+      margin-left: auto;
+      color: #4ade80;
       font-size: 14px;
       font-weight: 800;
-      color: #4ade80;
-      margin-left: auto;
     }
-
-    /* Bottom Nav */
     .bottom-nav {
       position: fixed;
-      bottom: 0;
       left: 0;
       right: 0;
-      background: rgba(6, 8, 20, 0.96);
-      backdrop-filter: blur(18px);
-      border-top: 1px solid rgba(255, 255, 255, 0.07);
+      bottom: 0;
+      z-index: 100;
       display: flex;
       justify-content: space-around;
       padding: 9px 0 18px;
-      z-index: 100;
+      background: rgba(6,8,20,.97);
+      border-top: 1px solid rgba(255,255,255,.07);
     }
-
     .nav-item {
+      background: none;
+      border: none;
+      color: #94a3b8;
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 3px;
       font-size: 10px;
-      color: #94a3b8;
-      background: none;
-      border: none;
       cursor: pointer;
     }
-
     .nav-item.active {
       color: #ffd700;
     }
-
     .nav-icon {
       font-size: 20px;
     }
-
-    @media (max-width: 380px) {
-      .pool-amount { font-size: 34px; }
-      .big-z { font-size: 110px; }
+    .screen {
+      text-align: center;
+      padding: 45px 20px;
+    }
+    .screen h2 {
+      font-size: 28px;
+      margin-bottom: 12px;
+    }
+    .screen p {
+      color: #94a3b8;
+      margin-bottom: 25px;
+      font-size: 13px;
+    }
+    .primary-btn {
+      background: linear-gradient(90deg,#ffd700,#ff9f00);
+      color: #111;
+      border: none;
+      border-radius: 26px;
+      padding: 14px 30px;
+      font-weight: 800;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    .secondary-btn {
+      display: block;
+      margin: 15px auto 0;
+      background: transparent;
+      color: #94a3b8;
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 22px;
+      padding: 10px 25px;
+      font-size: 12px;
+      cursor: pointer;
     }
   </style>
 </head>
 <body>
-
+  <!-- HEADER -->
   <div class="header">
     <div class="logo">
       <div class="logo-icon">Z</div>
@@ -401,185 +328,349 @@
         <span>PLAY · EARN · WIN</span>
       </div>
     </div>
-    <div class="telegram-badge">✈️ 8.2M+</div>
-  </div>
-
-  <div class="hero">
-    <h1 class="hero-title">PROJECT Z</h1>
-    <p class="hero-subtitle">A NEW DIGITAL ECONOMIC EXPERIENCE ON TELEGRAM</p>
-    <button class="play-btn">PLAY NOW →</button>
-    <div class="big-z-wrap">
-      <div class="big-z">Z</div>
+    <div class="telegram-badge">
+      ✈️ 8.2M+
     </div>
   </div>
-
-  <div class="pool-card">
-    <div class="pool-label">◆ TOTAL POOL</div>
-    <div class="pool-amount" id="poolAmount">$248,632.17</div>
-    <div class="pool-today">+$12,487.32 Today</div>
-    <div class="live-info">
-      <div class="live-dot"></div>
-      <span>Live · 1,284 users joined · +$2,341.56 in the last minute</span>
-    </div>
-  </div>
-
-  <div class="stats">
-    <div class="stat-card">
-      <div class="stat-icon">👥</div>
-      <div class="stat-label">TOTAL USERS</div>
-      <div class="stat-value">842,631</div>
-      <div class="stat-sub">+12.4K today</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-icon">🏆</div>
-      <div class="stat-label">PRIZE POOL</div>
-      <div class="stat-value">$248,632</div>
-      <div class="stat-sub">+$12.5K today</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-icon">⚡</div>
-      <div class="stat-label">DAILY PHASE</div>
-      <div class="stat-value">$2</div>
-      <div class="stat-sub">per entry</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-icon">⏱️</div>
-      <div class="stat-label">NEXT DRAW</div>
-      <div class="stat-value" id="countdown">05:42:17</div>
-      <div class="stat-sub">H · M · S</div>
-    </div>
-  </div>
-
-  <div class="features">
-    <div class="feature">
-      <div class="feature-icon">🎁</div>
-      <div class="feature-title">WIN BIG</div>
-      <div class="feature-desc">Real rewards</div>
-    </div>
-    <div class="feature">
-      <div class="feature-icon">🛡️</div>
-      <div class="feature-title">FAIR & TRANSPARENT</div>
-      <div class="feature-desc">On-chain verification</div>
-    </div>
-    <div class="feature">
-      <div class="feature-icon">⚡</div>
-      <div class="feature-title">FAST & EASY</div>
-      <div class="feature-desc">Play in seconds</div>
-    </div>
-    <div class="feature">
-      <div class="feature-icon">👥</div>
-      <div class="feature-title">REFER & EARN</div>
-      <div class="feature-desc">Invite your friends</div>
-    </div>
-  </div>
-
-  <div class="winners-section">
-    <div class="section-header">
-      <div class="section-title">🏆 LATEST WINNERS</div>
-      <div class="view-all">View All →</div>
-    </div>
-
-    <div class="winner-item">
-      <div class="winner-avatar">C</div>
-      <div class="winner-info">
-        <div class="winner-name">@CryptoKing</div>
-        <div class="winner-time">Just now</div>
+  <!-- HOME -->
+  <div id="app">
+    <div class="hero">
+      <h1 class="hero-title">
+        PROJECT Z
+      </h1>
+      <p class="hero-subtitle">
+        A NEW DIGITAL ECONOMIC EXPERIENCE ON TELEGRAM
+      </p>
+      <button class="play-btn">
+        PLAY NOW →
+      </button>
+      <div class="big-z-wrap">
+        <div class="big-z">Z</div>
       </div>
-      <div class="winner-amount">$12.50</div>
     </div>
-
-    <div class="winner-item">
-      <div class="winner-avatar">Z</div>
-      <div class="winner-info">
-        <div class="winner-name">@ZenaTrader</div>
-        <div class="winner-time">2 min ago</div>
+    <!-- POOL -->
+    <div class="pool-card">
+      <div class="pool-label">
+        ◆ TOTAL POOL
       </div>
-      <div class="winner-amount">$8.00</div>
+      <div class="pool-amount" id="poolAmount">
+        $248,632.17
+      </div>
+      <div class="pool-today">
+        +$12,487.32 Today
+      </div>
+      <div class="live-info">
+        🟢 Live · 1,284 users joined
+      </div>
     </div>
-
-    <div class="winner-item">
-      <div class="winner-avatar">B</div>
-      <div class="winner-info">
-        <div class="winner-name">@BitSoul</div>
-        <div class="winner-time">4 min ago</div>
+    <!-- STATS -->
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-icon">👥</div>
+        <div class="stat-label">TOTAL USERS</div>
+        <div class="stat-value">842,631</div>
+        <div class="stat-sub">+12.4K today</div>
       </div>
-      <div class="winner-amount">$15.75</div>
+      <div class="stat-card">
+        <div class="stat-icon">🏆</div>
+        <div class="stat-label">PRIZE POOL</div>
+        <div class="stat-value">$248,632</div>
+        <div class="stat-sub">+$12.5K today</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⚡</div>
+        <div class="stat-label">DAILY PHASE</div>
+        <div class="stat-value">$2</div>
+        <div class="stat-sub">per entry</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⏱️</div>
+        <div class="stat-label">NEXT DRAW</div>
+        <div class="stat-value" id="countdown">05:42:17</div>
+        <div class="stat-sub">H · M · S</div>
+      </div>
+    </div>
+    <!-- FEATURES -->
+    <div class="features">
+      <div class="feature">
+        <div class="feature-icon">🎁</div>
+        <div class="feature-title">WIN BIG</div>
+        <div class="feature-desc">Real rewards</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🛡️</div>
+        <div class="feature-title">FAIR & TRANSPARENT</div>
+        <div class="feature-desc">On-chain verification</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">⚡</div>
+        <div class="feature-title">FAST & EASY</div>
+        <div class="feature-desc">Play in seconds</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">👥</div>
+        <div class="feature-title">REFER & EARN</div>
+        <div class="feature-desc">Invite your friends</div>
+      </div>
+    </div>
+    <!-- WINNERS -->
+    <div class="winners-section">
+      <div class="section-header">
+        <div class="section-title">
+          🏆 LATEST WINNERS
+        </div>
+        <div class="view-all" id="viewAll">
+          View All →
+        </div>
+      </div>
+      <div class="winner-item">
+        <div class="winner-avatar">C</div>
+        <div>
+          <div class="winner-name">@CryptoKing</div>
+          <div class="winner-time">Just now</div>
+        </div>
+        <div class="winner-amount">
+          $12.50
+        </div>
+      </div>
+      <div class="winner-item">
+        <div class="winner-avatar">Z</div>
+        <div>
+          <div class="winner-name">@ZenaTrader</div>
+          <div class="winner-time">2 min ago</div>
+        </div>
+        <div class="winner-amount">
+          $8.00
+        </div>
+      </div>
+      <div class="winner-item">
+        <div class="winner-avatar">B</div>
+        <div>
+          <div class="winner-name">@BitSoul</div>
+          <div class="winner-time">4 min ago</div>
+        </div>
+        <div class="winner-amount">
+          $15.75
+        </div>
+      </div>
     </div>
   </div>
-
+  <!-- BOTTOM NAV -->
   <div class="bottom-nav">
-    <button class="nav-item active">
+    <button class="nav-item active" data-page="home">
       <div class="nav-icon">🏠</div>
       <span>Home</span>
     </button>
-    <button class="nav-item">
+    <button class="nav-item" data-page="play">
       <div class="nav-icon">🎮</div>
       <span>Play</span>
     </button>
-    <button class="nav-item">
+    <button class="nav-item" data-page="wallet">
       <div class="nav-icon">💼</div>
       <span>Wallet</span>
     </button>
-    <button class="nav-item">
+    <button class="nav-item" data-page="referral">
       <div class="nav-icon">👥</div>
       <span>Referral</span>
     </button>
-    <button class="nav-item">
+    <button class="nav-item" data-page="more">
       <div class="nav-icon">⋯</div>
       <span>More</span>
     </button>
   </div>
-
   <script>
+    /* TELEGRAM */
     if (window.Telegram && window.Telegram.WebApp) {
       Telegram.WebApp.ready();
       Telegram.WebApp.expand();
     }
-
-    // Countdown
-    function updateCountdown() {
-      const el = document.getElementById('countdown');
-      let p = el.innerText.split(':').map(Number);
-      let t = p[0]*3600 + p[1]*60 + p[2];
-      if (t <= 0) t = 5*3600 + 42*60 + 17;
-      t--;
-      el.innerText = 
-        String(Math.floor(t/3600)).padStart(2,'0') + ':' +
-        String(Math.floor((t%3600)/60)).padStart(2,'0') + ':' +
-        String(t%60).padStart(2,'0');
+    /* COUNTDOWN */
+    let totalSeconds = 5 * 3600 + 42 * 60 + 17;
+    setInterval(() => {
+      if (totalSeconds <= 0) {
+        totalSeconds = 5 * 3600 + 42 * 60 + 17;
+      }
+      totalSeconds--;
+      const h = Math.floor(totalSeconds / 3600);
+      const m = Math.floor((totalSeconds % 3600) / 60);
+      const s = totalSeconds % 60;
+      const countdown = document.getElementById("countdown");
+      if (countdown) {
+        countdown.innerText =
+          String(h).padStart(2,"0") + ":" +
+          String(m).padStart(2,"0") + ":" +
+          String(s).padStart(2,"0");
+      }
+    },1000);
+    /* LIVE POOL */
+    setInterval(() => {
+      const pool = document.getElementById("poolAmount");
+      if (!pool) return;
+      let value =
+        parseFloat(pool.innerText.replace(/[$,]/g,""));
+      value += Math.random() * 2.8 + 0.4;
+      pool.innerText =
+        "$" + value.toLocaleString("en-US",{
+          minimumFractionDigits:2,
+          maximumFractionDigits:2
+        });
+    },3500);
+    /* HOME */
+    function showHome() {
+      location.reload();
     }
-    setInterval(updateCountdown, 1000);
-
-    // Live pool increase (demo)
-    setInterval(() => {
-      const el = document.getElementById('poolAmount');
-      let val = parseFloat(el.innerText.replace(/[$,]/g,''));
-      val += Math.random() * 2.8 + 0.4;
-      el.innerText = '$' + val.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-    }, 3500);  // Live pool increase (demo)
-    setInterval(() => {
-      const el = document.getElementById('poolAmount');
-      let val = parseFloat(el.innerText.replace(/[$,]/g,''));
-      val += Math.random() * 2.8 + 0.4;
-      el.innerText = '$' + val.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-    }, 3500);document.querySelectorAll('.play-btn').forEach(btn => {
-  btn.addEventListener('click', () => {document.querySelector('.hero').innerHTML = `
-  <div style="padding:30px 20px;text-align:center;">
-    <h2 style="font-size:28px;margin-bottom:12px;">🎮 PROJECT Z</h2>
-    <p style="color:#94a3b8;margin-bottom:25px;">Choose your entry</p>
-
-    <button onclick="alert('Daily entry selected')"
-      style="background:linear-gradient(90deg,#ffd700,#ff9f00);
-      border:none;border-radius:25px;padding:14px 30px;
-      font-weight:800;font-size:15px;">
-      $2 DAILY ENTRY
-    </button>
-  </div>
-`;
+    /* PLAY PAGE */
+    function showPlay() {
+      document.getElementById("app").innerHTML = `
+        <div class="screen">
+          <h2>🎮 PROJECT Z</h2>
+          <p>
+            Choose your entry
+          </p>
+          <button
+            class="primary-btn"
+            id="dailyEntry">
+            $2 DAILY ENTRY
+          </button>
+          <button
+            class="secondary-btn"
+            id="playBack">
+            ← BACK
+          </button>
+        </div>
+      `;
+      document
+        .getElementById("dailyEntry")
+        .addEventListener("click",showEntry);
+      document
+        .getElementById("playBack")
+        .addEventListener("click",showHome);
+    }
+    /* ENTRY CONFIRMATION */
+    function showEntry() {
+      document.getElementById("app").innerHTML = `
+        <div class="screen">
+          <h2>🎟️ DAILY ENTRY</h2>
+          <p>
+            Entry price
+          </p>
+          <div style="
+            font-size:48px;
+            font-weight:900;
+            color:#ffd700;
+            margin-bottom:15px;
+          ">
+            $2
+          </div>
+          <p>
+            Confirm your entry for today's
+            Project Z phase.
+          </p>
+          <button
+            class="primary-btn"
+            id="confirmEntry">
+            CONFIRM ENTRY
+          </button>
+          <button
+            class="secondary-btn"
+            id="entryBack">
+            ← BACK
+          </button>
+        </div>
+      `;
+      document
+        .getElementById("confirmEntry")
+        .addEventListener("click",() => {
+          alert(
+            "Payment system will be connected next."
+          );
+        });
+      document
+        .getElementById("entryBack")
+        .addEventListener("click",showPlay);
+    }
+    /* NAVIGATION */
+    document.querySelectorAll(".nav-item")
+      .forEach(item => {
+        item.addEventListener("click",() => {
+          document
+            .querySelectorAll(".nav-item")
+            .forEach(nav => {
+              nav.classList.remove("active");
+            });
+          item.classList.add("active");
+          const page =
+            item.getAttribute("data-page");
+          if (page === "home") {
+            showHome();
+          }
+          if (page === "play") {
+            showPlay();
+          }
+          if (page === "wallet") {
+            document.getElementById("app").innerHTML = `
+              <div class="screen">
+                <h2>💼 WALLET</h2>
+                <p>
+                  Your Project Z wallet
+                  will appear here.
+                </p>
+                <button
+                  class="secondary-btn"
+                  onclick="showHome()">
+                  ← HOME
+                </button>
+              </div>
+            `;
+          }
+          if (page === "referral") {
+            document.getElementById("app").innerHTML = `
+              <div class="screen">
+                <h2>👥 REFERRAL</h2>
+                <p>
+                  Invite friends and earn rewards.
+                </p>
+                <button
+                  class="primary-btn"
+                  onclick="alert('Referral system will be connected next.')">
+                  INVITE FRIENDS
+                </button>
+                <button
+                  class="secondary-btn"
+                  onclick="showHome()">
+                  ← HOME
+                </button>
+              </div>
+            `;
+          }
+          if (page === "more") {
+            document.getElementById("app").innerHTML = `
+              <div class="screen">
+                <h2>⋯ MORE</h2>
+                <p>
+                  More Project Z options
+                  will appear here.
+                </p>
+                <button
+                  class="secondary-btn"
+                  onclick="showHome()">
+                  ← HOME
+                </button>
+              </div>
+            `;
+          }
+        });
       });
-    }); 
-</script>
+    /* HERO PLAY BUTTON */
+    document
+      .querySelector(".play-btn")
+      .addEventListener("click",showPlay);
+    /* VIEW ALL */
+    document
+      .getElementById("viewAll")
+      .addEventListener("click",() => {
+        alert("All winners will be available here.");
+      });
+  </script>
 </body>
 </html>
-    
-
