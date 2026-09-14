@@ -1,1212 +1,1213 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Project Z</title>
-
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    body {
-      background: #05070d;
-      color: #ffffff;
-      font-family: Arial, Helvetica, sans-serif;
-      min-height: 100vh;
-      overflow-x: hidden;
-    }
-
-    button {
-      font-family: inherit;
-      border: none;
-      cursor: pointer;
-    }
-
-    #app {
-      min-height: 100vh;
-      padding-bottom: 90px;
-    }
-
-    /* HEADER */
-    .header {
-      height: 70px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 20px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-      background: rgba(5,7,13,0.95);
-      position: sticky;
-      top: 0;
-      z-index: 20;
-    }
-
-    .logo {
-      font-size: 25px;
-      font-weight: 900;
-      letter-spacing: 2px;
-    }
-
-    .logo span {
-      color: #f5c542;
-    }
-
-    .telegram-badge {
-      background: #18202c;
-      border: 1px solid rgba(255,255,255,0.08);
-      padding: 8px 12px;
-      border-radius: 20px;
-      font-size: 12px;
-      color: #8ecaff;
-    }
-
-    /* GENERAL */
-    .page {
-      padding: 28px 18px;
-      max-width: 600px;
-      margin: auto;
-    }
-
-    .center {
-      text-align: center;
-    }
-
-    .title {
-      font-size: 38px;
-      font-weight: 900;
-      line-height: 1.05;
-      margin-top: 20px;
-    }
-
-    .title span {
-      color: #f5c542;
-    }
-
-    .subtitle {
-      color: #8992a3;
-      margin-top: 14px;
-      font-size: 15px;
-      line-height: 1.6;
-    }
-
-    /* HERO */
-    .hero {
-      text-align: center;
-      padding: 25px 0;
-    }
-
-    .z-symbol {
-      width: 145px;
-      height: 145px;
-      margin: 28px auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 90px;
-      font-weight: 900;
-      color: #f5c542;
-      border: 2px solid rgba(245,197,66,0.25);
-      border-radius: 50%;
-      box-shadow:
-        0 0 35px rgba(245,197,66,0.15),
-        inset 0 0 35px rgba(245,197,66,0.05);
-    }
-
-    /* BUTTON */
-    .primary-btn {
-      width: 100%;
-      max-width: 360px;
-      padding: 17px 22px;
-      border-radius: 14px;
-      background: linear-gradient(135deg, #f5c542, #d89f16);
-      color: #05070d;
-      font-size: 16px;
-      font-weight: 900;
-      margin-top: 22px;
-      box-shadow: 0 10px 30px rgba(245,197,66,0.18);
-    }
-
-    .primary-btn:active {
-      transform: scale(0.98);
-    }
-
-    .secondary-btn {
-      width: 100%;
-      max-width: 360px;
-      padding: 15px;
-      border-radius: 13px;
-      background: #141923;
-      color: #ffffff;
-      border: 1px solid rgba(255,255,255,0.1);
-      font-size: 15px;
-      font-weight: 700;
-      margin-top: 12px;
-    }
-
-    /* POOL */
-    .pool-card {
-      margin-top: 25px;
-      padding: 24px 20px;
-      border-radius: 20px;
-      background: linear-gradient(145deg, #101c2f, #0b111d);
-      border: 1px solid rgba(83,160,255,0.18);
-      box-shadow: 0 15px 45px rgba(0,0,0,0.25);
-      text-align: center;
-    }
-
-    .pool-label {
-      color: #7f8da3;
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-
-    .pool-amount {
-      font-size: 36px;
-      font-weight: 900;
-      margin-top: 9px;
-      color: #ffffff;
-    }
-
-    .pool-growth {
-      color: #53e08b;
-      margin-top: 8px;
-      font-size: 13px;
-    }
-
-    .live {
-      margin-top: 15px;
-      color: #ff5d67;
-      font-size: 12px;
-    }
-
-    /* COUNTDOWN */
-    .countdown {
-      margin-top: 18px;
-      display: flex;
-      justify-content: center;
-      gap: 8px;
-    }
-
-    .time-box {
-      background: #0b1019;
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 10px;
-      min-width: 62px;
-      padding: 10px 5px;
-    }
-
-    .time-number {
-      font-size: 21px;
-      font-weight: 900;
-    }
-
-    .time-label {
-      color: #737d8e;
-      font-size: 9px;
-      margin-top: 4px;
-      text-transform: uppercase;
-    }
-
-    /* STATS */
-    .section-title {
-      font-size: 20px;
-      font-weight: 800;
-      margin: 32px 0 14px;
-    }
-
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 10px;
-    }
-
-    .stat {
-      background: #0d121c;
-      border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 14px;
-      padding: 18px 12px;
-    }
-
-    .stat-value {
-      font-size: 20px;
-      font-weight: 900;
-    }
-
-    .stat-label {
-      margin-top: 6px;
-      color: #747e90;
-      font-size: 11px;
-    }
-
-    /* FEATURES */
-    .features {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 10px;
-    }
-
-    .feature {
-      background: #0d121c;
-      border-radius: 14px;
-      padding: 18px 14px;
-      border: 1px solid rgba(255,255,255,0.06);
-    }
-
-    .feature-icon {
-      font-size: 25px;
-      margin-bottom: 10px;
-    }
-
-    .feature-title {
-      font-weight: 800;
-      font-size: 14px;
-    }
-
-    .feature-text {
-      color: #747e90;
-      font-size: 11px;
-      line-height: 1.5;
-      margin-top: 7px;
-    }
-
-    /* WINNERS */
-    .winner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 15px;
-      background: #0d121c;
-      border-radius: 13px;
-      margin-bottom: 8px;
-      border: 1px solid rgba(255,255,255,0.06);
-    }
-
-    .winner-user {
-      font-weight: 700;
-      font-size: 14px;
-    }
-
-    .winner-time {
-      color: #737d8e;
-      font-size: 11px;
-      margin-top: 4px;
-    }
-
-    .winner-prize {
-      color: #f5c542;
-      font-weight: 900;
-    }
-
-    /* SUB PAGES */
-    .sub-page {
-      padding-top: 25px;
-    }
-
-    .back-btn {
-      background: transparent;
-      color: #9aa4b4;
-      font-size: 14px;
-      padding: 5px 0;
-      margin-bottom: 25px;
-    }
-
-    .big-card {
-      background: #0d121c;
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 20px;
-      padding: 25px 20px;
-      text-align: center;
-      margin-top: 20px;
-    }
-
-    .entry-price {
-      font-size: 48px;
-      font-weight: 900;
-      color: #f5c542;
-      margin: 15px 0;
-    }
-
-    .info-text {
-      color: #858fa0;
-      line-height: 1.7;
-      font-size: 14px;
-    }
-
-    .wallet-balance {
-      font-size: 44px;
-      font-weight: 900;
-      margin: 20px 0;
-    }
-
-    .ref-code {
-      margin: 20px 0;
-      padding: 15px;
-      background: #080c13;
-      border-radius: 12px;
-      color: #f5c542;
-      font-weight: 800;
-      word-break: break-all;
-    }
-
-    /* NAV */
-    .bottom-nav {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 72px;
-      background: rgba(7,10,16,0.97);
-      border-top: 1px solid rgba(255,255,255,0.08);
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      z-index: 100;
-      backdrop-filter: blur(12px);
-    }
-
-    .nav-item {
-      background: transparent;
-      color: #687283;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      gap: 4px;
-      font-size: 10px;
-    }
-
-    .nav-icon {
-      font-size: 20px;
-    }
-
-    .nav-item.active {
-      color: #f5c542;
-    }
-
-    /* NOTICE */
-    .notice {
-      background: rgba(245,197,66,0.07);
-      border: 1px solid rgba(245,197,66,0.16);
-      color: #b5ad91;
-      border-radius: 13px;
-      padding: 14px;
-      margin-top: 18px;
-      font-size: 12px;
-      line-height: 1.6;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>Project Z</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+*{
+  box-sizing:border-box;
+  margin:0;
+  padding:0;
+}
+:root{
+  --bg:#04050a;
+  --card:#0b0d15;
+  --card2:#0f111b;
+  --gold:#f5c84c;
+  --purple:#9b6cff;
+  --purple2:#c09aff;
+  --text:#f7f7fa;
+  --muted:#85899a;
+  --line:rgba(255,255,255,.075);
+}
+body{
+  background:
+    radial-gradient(circle at 50% -10%,rgba(112,70,220,.13),transparent 38%),
+    radial-gradient(circle at 100% 40%,rgba(76,90,255,.055),transparent 30%),
+    var(--bg);
+  color:var(--text);
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+  min-height:100vh;
+  overflow-x:hidden;
+}
+button{
+  font-family:inherit;
+  cursor:pointer;
+}
+#app{
+  min-height:100vh;
+  padding-bottom:82px;
+}
+/* HEADER */
+.header{
+  height:70px;
+  padding:0 19px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  border-bottom:1px solid var(--line);
+  background:rgba(4,5,10,.9);
+  backdrop-filter:blur(18px);
+  position:sticky;
+  top:0;
+  z-index:50;
+}
+.logo{
+  font-size:23px;
+  font-weight:900;
+  letter-spacing:2.5px;
+}
+.logo span{
+  color:var(--gold);
+}
+.badge{
+  font-size:10px;
+  color:#cbbaff;
+  border:1px solid rgba(155,108,255,.25);
+  background:rgba(155,108,255,.07);
+  padding:8px 11px;
+  border-radius:20px;
+  letter-spacing:.7px;
+}
+/* PAGE */
+.page{
+  width:100%;
+  max-width:620px;
+  margin:auto;
+  padding:26px 18px 30px;
+}
+.hero{
+  text-align:center;
+  padding-top:18px;
+}
+.eyebrow{
+  color:var(--purple2);
+  font-size:10px;
+  letter-spacing:3px;
+  font-weight:800;
+  margin-bottom:15px;
+}
+.title{
+  font-size:39px;
+  line-height:1.02;
+  font-weight:950;
+  letter-spacing:-1.5px;
+}
+.title span{
+  color:var(--gold);
+}
+.subtitle{
+  max-width:490px;
+  margin:15px auto 0;
+  color:var(--muted);
+  font-size:14px;
+  line-height:1.65;
+}
+/* Z */
+.z-wrap{
+  width:160px;
+  height:160px;
+  margin:31px auto 26px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border:1px solid rgba(155,108,255,.28);
+  box-shadow:
+    0 0 45px rgba(155,108,255,.12),
+    inset 0 0 35px rgba(155,108,255,.055);
+  position:relative;
+}
+.z-wrap:before{
+  content:"";
+  position:absolute;
+  inset:10px;
+  border-radius:50%;
+  border:1px solid rgba(245,200,76,.18);
+}
+.z{
+  font-size:95px;
+  font-weight:950;
+  font-style:italic;
+  color:var(--gold);
+  text-shadow:0 0 28px rgba(245,200,76,.15);
+}
+/* BUTTONS */
+.primary{
+  width:100%;
+  max-width:370px;
+  padding:17px 20px;
+  border:1px solid rgba(245,200,76,.35);
+  border-radius:14px;
+  background:linear-gradient(135deg,#f7d15c,#dba52a);
+  color:#090a0e;
+  font-size:15px;
+  font-weight:900;
+  letter-spacing:.3px;
+  box-shadow:0 12px 35px rgba(245,200,76,.13);
+}
+.primary:active{
+  transform:scale(.985);
+}
+.secondary{
+  width:100%;
+  max-width:370px;
+  padding:15px 18px;
+  margin-top:11px;
+  border:1px solid var(--line);
+  border-radius:13px;
+  background:#10131d;
+  color:#e7e8ed;
+  font-size:14px;
+  font-weight:750;
+}
+.back{
+  border:0;
+  background:none;
+  color:#9297a8;
+  padding:3px 0;
+  font-size:14px;
+  margin-bottom:22px;
+}
+/* POOL */
+.pool{
+  margin-top:25px;
+  padding:24px 18px 20px;
+  border-radius:21px;
+  text-align:center;
+  background:
+    linear-gradient(145deg,rgba(20,18,34,.95),rgba(8,10,16,.98));
+  border:1px solid rgba(155,108,255,.20);
+  box-shadow:
+    0 20px 55px rgba(0,0,0,.28),
+    0 0 35px rgba(155,108,255,.045);
+}
+.pool-label{
+  color:#777c8c;
+  font-size:10px;
+  letter-spacing:2px;
+  font-weight:800;
+}
+.pool-value{
+  margin-top:9px;
+  font-size:39px;
+  font-weight:950;
+  letter-spacing:-1px;
+}
+.pool-note{
+  color:#767b8b;
+  font-size:11px;
+  margin-top:7px;
+}
+.live{
+  margin-top:15px;
+  color:#74dfaa;
+  font-size:11px;
+  letter-spacing:.6px;
+}
+.live-dot{
+  display:inline-block;
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:#65e0a0;
+  margin-right:5px;
+  box-shadow:0 0 9px #65e0a0;
+}
+/* COUNTDOWN */
+.countdown{
+  display:flex;
+  justify-content:center;
+  gap:8px;
+  margin-top:18px;
+}
+.time{
+  min-width:67px;
+  padding:10px 5px;
+  border-radius:11px;
+  background:#090b12;
+  border:1px solid var(--line);
+}
+.time-num{
+  font-size:20px;
+  font-weight:900;
+}
+.time-label{
+  margin-top:4px;
+  color:#696e7d;
+  font-size:8px;
+  text-transform:uppercase;
+  letter-spacing:.8px;
+}
+/* SECTIONS */
+.section-title{
+  margin:31px 0 13px;
+  font-size:18px;
+  font-weight:850;
+}
+.stats{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+.stat{
+  background:rgba(11,13,21,.9);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:17px 13px;
+}
+.stat-value{
+  font-size:20px;
+  font-weight:900;
+}
+.stat-label{
+  margin-top:5px;
+  color:#6f7484;
+  font-size:9px;
+  letter-spacing:.6px;
+}
+/* FEATURES */
+.features{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+.feature{
+  padding:17px 14px;
+  border-radius:15px;
+  background:#0b0d15;
+  border:1px solid var(--line);
+}
+.icon{
+  font-size:22px;
+  margin-bottom:10px;
+}
+.feature-title{
+  font-size:13px;
+  font-weight:850;
+}
+.feature-text{
+  color:#707586;
+  font-size:10px;
+  line-height:1.55;
+  margin-top:6px;
+}
+/* EMPTY */
+.empty{
+  padding:27px 15px;
+  text-align:center;
+  border-radius:15px;
+  border:1px dashed rgba(255,255,255,.10);
+  background:rgba(10,12,18,.7);
+}
+.empty-icon{
+  font-size:26px;
+  margin-bottom:9px;
+}
+.empty-title{
+  font-size:14px;
+  font-weight:800;
+}
+.empty-text{
+  color:#707586;
+  font-size:11px;
+  line-height:1.5;
+  margin-top:6px;
+}
+/* SUB PAGE */
+.card{
+  margin-top:20px;
+  padding:23px 18px;
+  border-radius:19px;
+  background:#0b0d15;
+  border:1px solid var(--line);
+  box-shadow:0 15px 40px rgba(0,0,0,.22);
+}
+.price{
+  text-align:center;
+  font-size:48px;
+  font-weight:950;
+  color:var(--gold);
+  margin:13px 0 17px;
+}
+.info{
+  color:#858a9b;
+  font-size:13px;
+  line-height:1.7;
+}
+.notice{
+  margin-top:15px;
+  padding:13px;
+  border-radius:12px;
+  color:#a5a8b5;
+  background:rgba(155,108,255,.055);
+  border:1px solid rgba(155,108,255,.13);
+  font-size:11px;
+  line-height:1.6;
+}
+/* TEXT DOCUMENT */
+.document{
+  margin-top:16px;
+  padding:20px 17px;
+  border-radius:17px;
+  background:#0a0c13;
+  border:1px solid var(--line);
+}
+.document h3{
+  color:#f1f1f5;
+  font-size:15px;
+  margin:19px 0 8px;
+}
+.document h3:first-child{
+  margin-top:0;
+}
+.document p,
+.document li{
+  color:#8b90a0;
+  font-size:12px;
+  line-height:1.75;
+}
+.document ul{
+  padding-left:18px;
+}
+.ref{
+  margin-top:16px;
+  padding:15px;
+  text-align:center;
+  word-break:break-all;
+  border-radius:12px;
+  color:var(--purple2);
+  background:#080a10;
+  border:1px solid rgba(155,108,255,.13);
+  font-size:12px;
+}
+/* BOTTOM NAV */
+.bottom{
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:0;
+  height:73px;
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  background:rgba(5,6,11,.96);
+  border-top:1px solid var(--line);
+  backdrop-filter:blur(18px);
+  z-index:100;
+}
+.nav{
+  border:0;
+  background:transparent;
+  color:#626879;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  font-size:9px;
+}
+.nav-icon{
+  font-size:19px;
+}
+.nav.active{
+  color:var(--gold);
+}
+@media(max-width:360px){
+  .title{font-size:34px}
+  .z-wrap{width:140px;height:140px}
+  .z{font-size:80px}
+  .time{min-width:59px}
+}
+</style>
 </head>
-
 <body>
-
-<div id="app">
-
-  <!-- HOME -->
-  <div id="homePage">
-
+<div id="app"></div>
+<script>
+/* =========================================================
+   TELEGRAM
+========================================================= */
+if(window.Telegram && Telegram.WebApp){
+  Telegram.WebApp.ready();
+  Telegram.WebApp.expand();
+}
+/* =========================================================
+   REAL DATA
+   شروع پروژه = صفر
+   هیچ داده ساختگی تولید نمی‌شود.
+========================================================= */
+let projectData = {
+  users: 0,
+  pool: 0,
+  winners: []
+};
+/* =========================================================
+   MOSCOW COUNTDOWN
+   پایان هر فاز: 00:00 به وقت مسکو
+========================================================= */
+function getMoscowCountdown(){
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat(
+    "en-US",
+    {
+      timeZone:"Europe/Moscow",
+      hour12:false,
+      year:"numeric",
+      month:"2-digit",
+      day:"2-digit",
+      hour:"2-digit",
+      minute:"2-digit",
+      second:"2-digit"
+    }
+  );
+  const parts = formatter.formatToParts(now);
+  const values = {};
+  parts.forEach(function(part){
+    if(part.type !== "literal"){
+      values[part.type] = Number(part.value);
+    }
+  });
+  const moscowNow = new Date(
+    Date.UTC(
+      values.year,
+      values.month - 1,
+      values.day,
+      values.hour,
+      values.minute,
+      values.second
+    )
+  );
+  const nextDay = new Date(moscowNow);
+  nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+  nextDay.setUTCHours(0,0,0,0);
+  return Math.max(
+    0,
+    Math.floor((nextDay - moscowNow) / 1000)
+  );
+}
+function formatTime(total){
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return {
+    h:String(h).padStart(2,"0"),
+    m:String(m).padStart(2,"0"),
+    s:String(s).padStart(2,"0")
+  };
+}
+function updateCountdown(){
+  const total = getMoscowCountdown();
+  const t = formatTime(total);
+  const h = document.getElementById("hours");
+  const m = document.getElementById("minutes");
+  const s = document.getElementById("seconds");
+  const next = document.getElementById("nextDraw");
+  if(h) h.textContent = t.h;
+  if(m) m.textContent = t.m;
+  if(s) s.textContent = t.s;
+  if(next){
+    next.textContent = t.h + ":" + t.m + ":" + t.s;
+  }
+}
+setInterval(updateCountdown,1000);
+/* =========================================================
+   HELPERS
+========================================================= */
+function money(value){
+  return "$" + Number(value).toLocaleString("en-US",{
+    minimumFractionDigits:2,
+    maximumFractionDigits:2
+  });
+}
+function setNav(active){
+  document.querySelectorAll(".nav").forEach(function(btn){
+    btn.classList.remove("active");
+  });
+  const selected = document.querySelector(
+    '.nav[data-page="' + active + '"]'
+  );
+  if(selected){
+    selected.classList.add("active");
+  }
+}
+function navHTML(active){
+  return `
+    <div class="bottom">
+      <button class="nav ${active==="home"?"active":""}" data-page="home">
+        <div class="nav-icon">⌂</div>
+        <div>Home</div>
+      </button>
+      <button class="nav ${active==="play"?"active":""}" data-page="play">
+        <div class="nav-icon">▶</div>
+        <div>Play</div>
+      </button>
+      <button class="nav ${active==="wallet"?"active":""}" data-page="wallet">
+        <div class="nav-icon">◉</div>
+        <div>Wallet</div>
+      </button>
+      <button class="nav ${active==="referral"?"active":""}" data-page="referral">
+        <div class="nav-icon">♧</div>
+        <div>Referral</div>
+      </button>
+      <button class="nav ${active==="more"?"active":""}" data-page="more">
+        <div class="nav-icon">☰</div>
+        <div>More</div>
+      </button>
+    </div>
+  `;
+}
+/* =========================================================
+   HOME
+========================================================= */
+function showHome(){
+  document.getElementById("app").innerHTML = `
     <div class="header">
       <div class="logo">PROJECT <span>Z</span></div>
-      <div class="telegram-badge">TELEGRAM APP</div>
+      <div class="badge">TELEGRAM MINI APP</div>
     </div>
-
-    <div class="page">
-
-      <div class="hero">
-
+    <main class="page">
+      <section class="hero">
+        <div class="eyebrow">
+          TRANSPARENT • FAIR • COMMUNITY
+        </div>
         <div class="title">
           WIN BIG.<br>
           <span>PLAY FAIR.</span>
         </div>
-
         <div class="subtitle">
-          A new generation of community-powered rewards.
-          Simple entry. Transparent system. Big possibilities.
+          Project Z is built around transparent participation.
+          No fake users, no fake winners and no invented prize pool.
         </div>
-
-        <div class="z-symbol">Z</div>
-
-        <button class="primary-btn" id="heroPlay">
+        <div class="z-wrap">
+          <div class="z">Z</div>
+        </div>
+        <button class="primary" onclick="showPlay()">
           PLAY NOW
         </button>
-
-      </div>
-
-      <!-- POOL -->
-      <div class="pool-card">
-
+      </section>
+      <section class="pool">
         <div class="pool-label">
-          LIVE PRIZE POOL
+          CURRENT PRIZE POOL
         </div>
-
-        <div class="pool-amount" id="poolAmount">
-          $248,632.17
+        <div class="pool-value">
+          ${money(projectData.pool)}
         </div>
-
-        <div class="pool-growth">
-          +$12,487.32 TODAY
+        <div class="pool-note">
+          Only real entries are added to the pool.
         </div>
-
         <div class="live">
-          ● LIVE NOW
+          <span class="live-dot"></span>
+          LIVE DATA
         </div>
-
         <div class="countdown">
-
-          <div class="time-box">
-            <div class="time-number" id="hours">05</div>
+          <div class="time">
+            <div class="time-num" id="hours">00</div>
             <div class="time-label">Hours</div>
           </div>
-
-          <div class="time-box">
-            <div class="time-number" id="minutes">42</div>
+          <div class="time">
+            <div class="time-num" id="minutes">00</div>
             <div class="time-label">Minutes</div>
           </div>
-
-          <div class="time-box">
-            <div class="time-number" id="seconds">17</div>
+          <div class="time">
+            <div class="time-num" id="seconds">00</div>
             <div class="time-label">Seconds</div>
           </div>
-
         </div>
-
-      </div>
-
-      <!-- STATS -->
+        <div class="pool-note">
+          Next phase ends at 00:00 Moscow time.
+        </div>
+      </section>
       <div class="section-title">
-        Platform Stats
+        Live Statistics
       </div>
-
       <div class="stats">
-
         <div class="stat">
-          <div class="stat-value">842,631</div>
-          <div class="stat-label">TOTAL USERS</div>
+          <div class="stat-value">${projectData.users}</div>
+          <div class="stat-label">REAL USERS</div>
         </div>
-
         <div class="stat">
-          <div class="stat-value">$248K+</div>
-          <div class="stat-label">PRIZE POOL</div>
+          <div class="stat-value">${money(projectData.pool)}</div>
+          <div class="stat-label">REAL POOL</div>
         </div>
-
         <div class="stat">
           <div class="stat-value">$2</div>
           <div class="stat-label">DAILY ENTRY</div>
         </div>
-
         <div class="stat">
-          <div class="stat-value" id="nextDraw">05:42:17</div>
-          <div class="stat-label">NEXT DRAW</div>
+          <div class="stat-value" id="nextDraw">00:00:00</div>
+          <div class="stat-label">UNTIL MOSCOW MIDNIGHT</div>
         </div>
-
       </div>
-
-      <!-- FEATURES -->
       <div class="section-title">
         Why Project Z?
       </div>
-
       <div class="features">
-
         <div class="feature">
-          <div class="feature-icon">🏆</div>
-          <div class="feature-title">Win Big</div>
-          <div class="feature-text">
-            Join daily draws with a simple entry.
-          </div>
-        </div>
-
-        <div class="feature">
-          <div class="feature-icon">🔎</div>
+          <div class="icon">◇</div>
           <div class="feature-title">Transparent</div>
           <div class="feature-text">
-            Clear rules and visible prize information.
+            Real numbers only. No invented activity.
           </div>
         </div>
-
         <div class="feature">
-          <div class="feature-icon">⚡</div>
-          <div class="feature-title">Fast & Easy</div>
+          <div class="icon">◈</div>
+          <div class="feature-title">Fair</div>
           <div class="feature-text">
-            Designed specifically for Telegram.
+            Prize rules are published before participation.
           </div>
         </div>
-
         <div class="feature">
-          <div class="feature-icon">👥</div>
-          <div class="feature-title">Refer & Earn</div>
+          <div class="icon">⚡</div>
+          <div class="feature-title">Simple</div>
           <div class="feature-text">
-            Invite friends and participate together.
+            Designed for a fast Telegram experience.
           </div>
         </div>
-
+        <div class="feature">
+          <div class="icon">◎</div>
+          <div class="feature-title">Verifiable</div>
+          <div class="feature-text">
+            Winners should come from real entries.
+          </div>
+        </div>
       </div>
-
-      <!-- WINNERS -->
       <div class="section-title">
         Latest Winners
       </div>
-
-      <div class="winner">
-        <div>
-          <div class="winner-user">User •••4821</div>
-          <div class="winner-time">2 minutes ago</div>
+      ${
+        projectData.winners.length === 0
+        ?
+        `
+        <div class="empty">
+          <div class="empty-icon">◇</div>
+          <div class="empty-title">No winners yet</div>
+          <div class="empty-text">
+            Winners will appear here only after a real completed phase.
+          </div>
         </div>
-        <div class="winner-prize">+$1,240</div>
-      </div>
-
-      <div class="winner">
-        <div>
-          <div class="winner-user">User •••9137</div>
-          <div class="winner-time">7 minutes ago</div>
-        </div>
-        <div class="winner-prize">+$860</div>
-      </div>
-
-      <div class="winner">
-        <div>
-          <div class="winner-user">User •••2754</div>
-          <div class="winner-time">14 minutes ago</div>
-        </div>
-        <div class="winner-prize">+$2,450</div>
-      </div>
-
-      <button
-        class="secondary-btn"
-        onclick="alert('Winner history will be connected to the backend.')">
-        VIEW ALL WINNERS
-      </button>
-
-    </div>
-  </div>
-
-
-  <!-- BOTTOM NAV -->
-
-  <div class="bottom-nav">
-
-    <button class="nav-item active" data-page="home">
-      <div class="nav-icon">⌂</div>
-      <div>Home</div>
-    </button>
-
-    <button class="nav-item" data-page="play">
-      <div class="nav-icon">▶</div>
-      <div>Play</div>
-    </button>
-
-    <button class="nav-item" data-page="wallet">
-      <div class="nav-icon">◉</div>
-      <div>Wallet</div>
-    </button>
-
-    <button class="nav-item" data-page="referral">
-      <div class="nav-icon">♧</div>
-      <div>Referral</div>
-    </button>
-
-    <button class="nav-item" data-page="more">
-      <div class="nav-icon">☰</div>
-      <div>More</div>
-    </button>
-
-  </div>
-
-</div>
-
-
-<script>
-
-  /* TELEGRAM */
-
-  if (window.Telegram && Telegram.WebApp) {
-    Telegram.WebApp.ready();
-    Telegram.WebApp.expand();
-  }
-
-
-  /* HELPERS */
-
-  function setActiveNav(pageName) {
-
-    document.querySelectorAll(".nav-item").forEach(function(item) {
-
-      item.classList.remove("active");
-
-      if (item.dataset.page === pageName) {
-        item.classList.add("active");
+        `
+        :
+        projectData.winners.map(function(w){
+          return `
+            <div class="stat" style="margin-bottom:8px;">
+              <div class="stat-value">${w.name}</div>
+              <div class="stat-label">${w.prize}</div>
+            </div>
+          `;
+        }).join("")
       }
-
-    });
-
-  }
-
-
-  function showHome() {
-
-    location.reload();
-
-  }
-
-
-  /* PLAY PAGE */
-
-  function showPlay() {
-
-    setActiveNav("play");
-
-    document.getElementById("app").innerHTML = `
-
-      <div class="header">
-        <div class="logo">PROJECT <span>Z</span></div>
-        <div class="telegram-badge">PLAY</div>
-      </div>
-
-      <div class="page sub-page">
-
-        <button class="back-btn" onclick="showHome()">
-          ← BACK
-        </button>
-
-        <div class="title">
-          CHOOSE YOUR<br>
-          <span>ENTRY</span>
-        </div>
-
-        <div class="subtitle">
-          Select an entry option and join the current Project Z phase.
-        </div>
-
-        <div class="big-card">
-
-          <div class="pool-label">
-            DAILY ENTRY
-          </div>
-
-          <div class="entry-price">
-            $2
-          </div>
-
-          <div class="info-text">
-            One daily entry gives you access to the current draw.
-            Payment will be processed securely through Telegram.
-          </div>
-
-          <button class="primary-btn" onclick="showEntry()">
-            $2 DAILY ENTRY
-          </button>
-
-          <button class="secondary-btn" onclick="showHome()">
-            BACK
-          </button>
-
-        </div>
-
-        <div class="notice">
-          Demo mode: payment is not connected yet.
-          The Telegram Stars payment system will be connected in the next stage.
-        </div>
-
-      </div>
-
-      <div class="bottom-nav">
-
-        <button class="nav-item" onclick="showHome()">
-          <div class="nav-icon">⌂</div>
-          <div>Home</div>
-        </button>
-
-        <button class="nav-item active">
-          <div class="nav-icon">▶</div>
-          <div>Play</div>
-        </button>
-
-        <button class="nav-item" onclick="showWallet()">
-          <div class="nav-icon">◉</div>
-          <div>Wallet</div>
-        </button>
-
-        <button class="nav-item" onclick="showReferral()">
-          <div class="nav-icon">♧</div>
-          <div>Referral</div>
-        </button>
-
-        <button class="nav-item" onclick="showMore()">
-          <div class="nav-icon">☰</div>
-          <div>More</div>
-        </button>
-
-      </div>
-    `;
-
-  }
-
-
-  /* ENTRY CONFIRMATION */
-
-  function showEntry() {
-
-    document.getElementById("app").innerHTML = `
-
-      <div class="header">
-        <div class="logo">PROJECT <span>Z</span></div>
-        <div class="telegram-badge">ENTRY</div>
-      </div>
-
-      <div class="page sub-page">
-
-        <button class="back-btn" onclick="showPlay()">
-          ← BACK
-        </button>
-
-        <div class="title">
-          CONFIRM<br>
-          <span>ENTRY</span>
-        </div>
-
-        <div class="big-card">
-
-          <div class="pool-label">
-            ENTRY PRICE
-          </div>
-
-          <div class="entry-price">
-            $2
-          </div>
-
-          <div class="info-text">
-            You are about to enter the current daily Project Z phase.
-            Your payment will be processed through Telegram Stars once
-            the payment system is connected.
-          </div>
-
-          <button
-            class="primary-btn"
-            onclick="confirmPayment()">
-            CONFIRM ENTRY
-          </button>
-
-          <button
-            class="secondary-btn"
-            onclick="showPlay()">
-            BACK
-          </button>
-
-        </div>
-
-        <div class="notice">
-          No money will be charged in this demo version.
-        </div>
-
-      </div>
-
-    `;
-
-  }
-
-
-  /* PAYMENT PLACEHOLDER */
-
-  function confirmPayment() {
-
-    alert(
-      "Payment system is not connected yet.\\n\\nNext step: Telegram Stars payment integration."
-    );
-
-  }
-
-
-  /* WALLET */
-
-  function showWallet() {
-
-    setActiveNav("wallet");
-
-    document.getElementById("app").innerHTML = `
-
-      <div class="header">
-        <div class="logo">PROJECT <span>Z</span></div>
-        <div class="telegram-badge">WALLET</div>
-      </div>
-
-      <div class="page sub-page">
-
-        <button class="back-btn" onclick="showHome()">
-          ← BACK
-        </button>
-
-        <div class="title">
-          YOUR<br>
-          <span>WALLET</span>
-        </div>
-
-        <div class="big-card">
-
-          <div class="pool-label">
-            CURRENT BALANCE
-          </div>
-
-          <div class="wallet-balance">
-            $0.00
-          </div>
-
-          <div class="info-text">
-            Your balance, deposits and withdrawals will appear here
-            after the wallet system is connected.
-          </div>
-
-          <button
-            class="primary-btn"
-            onclick="alert('Wallet system coming next.')">
-            CONNECT WALLET
-          </button>
-
-        </div>
-
-      </div>
-
-      <div class="bottom-nav">
-
-        <button class="nav-item" onclick="showHome()">
-          <div class="nav-icon">⌂</div>
-          <div>Home</div>
-        </button>
-
-        <button class="nav-item" onclick="showPlay()">
-          <div class="nav-icon">▶</div>
-          <div>Play</div>
-        </button>
-
-        <button class="nav-item active">
-          <div class="nav-icon">◉</div>
-          <div>Wallet</div>
-        </button>
-
-        <button class="nav-item" onclick="showReferral()">
-          <div class="nav-icon">♧</div>
-          <div>Referral</div>
-        </button>
-
-        <button class="nav-item" onclick="showMore()">
-          <div class="nav-icon">☰</div>
-          <div>More</div>
-        </button>
-
-      </div>
-
-    `;
-
-  }
-
-
-  /* REFERRAL */
-
-  function showReferral() {
-
-    setActiveNav("referral");
-
-    document.getElementById("app").innerHTML = `
-
-      <div class="header">
-        <div class="logo">PROJECT <span>Z</span></div>
-        <div class="telegram-badge">REFERRAL</div>
-      </div>
-
-      <div class="page sub-page">
-
-        <button class="back-btn" onclick="showHome()">
-          ← BACK
-        </button>
-
-        <div class="title">
-          REFER &<br>
-          <span>EARN</span>
-        </div>
-
-        <div class="subtitle">
-          Invite friends and build your Project Z network.
-        </div>
-
-        <div class="big-card">
-
-          <div class="pool-label">
-            YOUR REFERRAL LINK
-          </div>
-
-          <div class="ref-code">
-            t.me/ProjectZBot?start=USER123
-          </div>
-
-          <div class="info-text">
-            Referral rewards will be activated when the backend
-            and referral system are connected.
-          </div>
-
-          <button
-            class="primary-btn"
-            onclick="copyReferral()">
-            COPY LINK
-          </button>
-
-        </div>
-
-      </div>
-
-      <div class="bottom-nav">
-
-        <button class="nav-item" onclick="showHome()">
-          <div class="nav-icon">⌂</div>
-          <div>Home</div>
-        </button>
-
-        <button class="nav-item" onclick="showPlay()">
-          <div class="nav-icon">▶</div>
-          <div>Play</div>
-        </button>
-
-        <button class="nav-item" onclick="showWallet()">
-          <div class="nav-icon">◉</div>
-          <div>Wallet</div>
-        </button>
-
-        <button class="nav-item active">
-          <div class="nav-icon">♧</div>
-          <div>Referral</div>
-        </button>
-
-        <button class="nav-item" onclick="showMore()">
-          <div class="nav-icon">☰</div>
-          <div>More</div>
-        </button>
-
-      </div>
-
-    `;
-
-  }
-
-
-  function copyReferral() {
-
-    navigator.clipboard.writeText(
-      "https://t.me/ProjectZBot?start=USER123"
-    );
-
-    alert("Referral link copied.");
-
-  }
-
-
-  /* MORE */
-
-  function showMore() {
-
-    setActiveNav("more");
-
-    document.getElementById("app").innerHTML = `
-
-      <div class="header">
-        <div class="logo">PROJECT <span>Z</span></div>
-        <div class="telegram-badge">MORE</div>
-      </div>
-
-      <div class="page sub-page">
-
-        <button class="back-btn" onclick="showHome()">
-          ← BACK
-        </button>
-
-        <div class="title">
-          PROJECT<br>
-          <span>Z</span>
-        </div>
-
-        <div class="big-card">
-
-          <div class="section-title" style="margin-top:0;">
-            About Project Z
-          </div>
-
-          <div class="info-text">
-            Project Z is a Telegram-native platform concept
-            designed around simple participation, transparent
-            information and community rewards.
-          </div>
-
-          <button
-            class="secondary-btn"
-            onclick="alert('Terms will be added here.')">
-            TERMS & CONDITIONS
-          </button>
-
-          <button
-            class="secondary-btn"
-            onclick="alert('Privacy Policy will be added here.')">
-            PRIVACY POLICY
-          </button>
-
-          <button
-            class="secondary-btn"
-            onclick="alert('Support system will be connected later.')">
-            SUPPORT
-          </button>
-
-        </div>
-
-      </div>
-
-      <div class="bottom-nav">
-
-        <button class="nav-item" onclick="showHome()">
-          <div class="nav-icon">⌂</div>
-          <div>Home</div>
-        </button>
-
-        <button class="nav-item" onclick="showPlay()">
-          <div class="nav-icon">▶</div>
-          <div>Play</div>
-        </button>
-
-        <button class="nav-item" onclick="showWallet()">
-          <div class="nav-icon">◉</div>
-          <div>Wallet</div>
-        </button>
-
-        <button class="nav-item" onclick="showReferral()">
-          <div class="nav-icon">♧</div>
-          <div>Referral</div>
-        </button>
-
-        <button class="nav-item active">
-          <div class="nav-icon">☰</div>
-          <div>More</div>
-        </button>
-
-      </div>
-
-    `;
-
-  }
-
-
-  /* NAVIGATION */
-
-  document.addEventListener("click", function(event) {
-
-    const nav = event.target.closest(".nav-item");
-
-    if (!nav) return;
-
-    const page = nav.dataset.page;
-
-    if (page === "home") {
-      showHome();
-    }
-
-    if (page === "play") {
-      showPlay();
-    }
-
-    if (page === "wallet") {
-      showWallet();
-    }
-
-    if (page === "referral") {
-      showReferral();
-    }
-
-    if (page === "more") {
-      showMore();
-    }
-
-  });
-
-
-  /* HERO PLAY */
-
-  document.addEventListener("click", function(event) {
-
-    if (event.target.id === "heroPlay") {
-      showPlay();
-    }
-
-  });
-
-
-  /* COUNTDOWN */
-
-  let totalSeconds = 5 * 60 * 60 + 42 * 60 + 17;
-
-  function updateCountdown() {
-
-    if (totalSeconds <= 0) {
-      totalSeconds = 6 * 60 * 60;
-    }
-
-    const h = Math.floor(totalSeconds / 3600);
-
-    const m = Math.floor(
-      (totalSeconds % 3600) / 60
-    );
-
-    const s = totalSeconds % 60;
-
-    const hours = String(h).padStart(2, "0");
-    const minutes = String(m).padStart(2, "0");
-    const seconds = String(s).padStart(2, "0");
-
-    const hourEl = document.getElementById("hours");
-    const minuteEl = document.getElementById("minutes");
-    const secondEl = document.getElementById("seconds");
-    const nextDrawEl = document.getElementById("nextDraw");
-
-    if (hourEl) hourEl.textContent = hours;
-    if (minuteEl) minuteEl.textContent = minutes;
-    if (secondEl) secondEl.textContent = seconds;
-
-    if (nextDrawEl) {
-      nextDrawEl.textContent =
-        hours + ":" + minutes + ":" + seconds;
-    }
-
-    totalSeconds--;
-
-  }
-
+    </main>
+    ${navHTML("home")}
+  `;
   updateCountdown();
-
-  setInterval(updateCountdown, 1000);
-
-
-  /* LIVE POOL */
-
-  setInterval(function() {
-
-    const pool = document.getElementById("poolAmount");
-
-    if (!pool) return;
-
-    let value = parseFloat(
-      pool.textContent.replace(/[$,]/g, "")
-    );
-
-    value += Math.random() * 2.8 + 0.4;
-
-    pool.textContent =
-      "$" +
-      value.toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      });
-
-  }, 3500);
-
+}
+/* =========================================================
+   PLAY
+========================================================= */
+function showPlay(){
+  setNav("play");
+  document.getElementById("app").innerHTML = `
+    <div class="header">
+      <div class="logo">PROJECT <span>Z</span></div>
+      <div class="badge">PLAY</div>
+    </div>
+    <main class="page">
+      <button class="back" onclick="showHome()">
+        ← BACK
+      </button>
+      <div class="eyebrow">
+        DAILY PHASE
+      </div>
+      <div class="title">
+        CHOOSE YOUR<br>
+        <span>ENTRY</span>
+      </div>
+      <div class="subtitle">
+        One daily entry costs $2.
+        The actual prize pool starts from zero and increases
+        only from real completed entries.
+      </div>
+      <div class="card">
+        <div class="pool-label">
+          DAILY ENTRY
+        </div>
+        <div class="price">
+          $2
+        </div>
+        <div class="info">
+          The first real participant of a phase is guaranteed
+          to be included among that phase's winners, subject
+          to the published rules and applicable eligibility
+          requirements.
+        </div>
+        <button class="primary" onclick="showEntry()">
+          CONTINUE
+        </button>
+        <button class="secondary" onclick="showHome()">
+          BACK
+        </button>
+      </div>
+      <div class="notice">
+        Payment is not connected in this version.
+        No money is charged by this demo.
+      </div>
+    </main>
+    ${navHTML("play")}
+  `;
+}
+/* =========================================================
+   ENTRY
+========================================================= */
+function showEntry(){
+  document.getElementById("app").innerHTML = `
+    <div class="header">
+      <div class="logo">PROJECT <span>Z</span></div>
+      <div class="badge">ENTRY</div>
+    </div>
+    <main class="page">
+      <button class="back" onclick="showPlay()">
+        ← BACK
+      </button>
+      <div class="eyebrow">
+        CONFIRM PARTICIPATION
+      </div>
+      <div class="title">
+        DAILY<br>
+        <span>ENTRY</span>
+      </div>
+      <div class="card">
+        <div class="pool-label">
+          ENTRY PRICE
+        </div>
+        <div class="price">
+          $2
+        </div>
+        <div class="info">
+          You are confirming your intention to enter
+          today's Project Z phase.
+          The current real prize pool is ${money(projectData.pool)}.
+        </div>
+        <button class="primary" onclick="confirmEntry()">
+          CONFIRM ENTRY
+        </button>
+        <button class="secondary" onclick="showPlay()">
+          BACK
+        </button>
+      </div>
+      <div class="notice">
+        Demo mode: no payment will be taken.
+        Telegram Stars integration will be connected separately.
+      </div>
+    </main>
+  `;
+}
+function confirmEntry(){
+  alert(
+    "Demo mode only.\\n\\nNo payment has been taken.\\n\\nThe real Telegram Stars payment system is not connected yet."
+  );
+}
+/* =========================================================
+   WALLET
+========================================================= */
+function showWallet(){
+  setNav("wallet");
+  document.getElementById("app").innerHTML = `
+    <div class="header">
+      <div class="logo">PROJECT <span>Z</span></div>
+      <div class="badge">WALLET</div>
+    </div>
+    <main class="page">
+      <button class="back" onclick="showHome()">
+        ← BACK
+      </button>
+      <div class="title">
+        YOUR<br>
+        <span>WALLET</span>
+      </div>
+      <div class="card">
+        <div class="pool-label">
+          BALANCE
+        </div>
+        <div class="price">
+          $0.00
+        </div>
+        <div class="info">
+          Your real balance will appear here after the
+          payment and wallet backend are connected.
+        </div>
+      </div>
+      <div class="notice">
+        No balance is fabricated. Until a real transaction exists,
+        the balance remains $0.00.
+      </div>
+    </main>
+    ${navHTML("wallet")}
+  `;
+}
+/* =========================================================
+   REFERRAL
+========================================================= */
+function showReferral(){
+  setNav("referral");
+  document.getElementById("app").innerHTML = `
+    <div class="header">
+      <div class="logo">PROJECT <span>Z</span></div>
+      <div class="badge">REFERRAL</div>
+    </div>
+    <main class="page">
+      <button class="back" onclick="showHome()">
+        ← BACK
+      </button>
+      <div class="title">
+        REFER &<br>
+        <span>EARN</span>
+      </div>
+      <div class="subtitle">
+        Your referral activity will be calculated from
+        real Telegram users after the backend is connected.
+      </div>
+      <div class="card">
+        <div class="pool-label">
+          YOUR REFERRAL LINK
+        </div>
+        <div class="ref">
+          Referral link will be generated from your real Telegram user ID.
+        </div>
+        <button class="primary" onclick="alert('Referral system will be connected to the real Telegram account.')">
+          GET MY LINK
+        </button>
+      </div>
+    </main>
+    ${navHTML("referral")}
+  `;
+}
+/* =========================================================
+   MORE
+========================================================= */
+function showMore(){
+  setNav("more");
+  document.getElementById("app").innerHTML = `
+    <div class="header">
+      <div class="logo">PROJECT <span>Z</span></div>
+      <div class="badge">MORE</div>
+    </div>
+    <main class="page">
+      <button class="back" onclick="showHome()">
+        ← BACK
+      </button>
+      <div class="title">
+        PROJECT<br>
+        <span>Z</span>
+      </div>
+      <div class="subtitle">
+        Everything you need to understand before participating.
+      </div>
+      <button class="secondary" onclick="showAbout()">
+        ABOUT PROJECT Z
+      </button>
+      <button class="secondary" onclick="showRules()">
+        GAME & PRIZE RULES
+      </button>
+      <button class="secondary" onclick="showTerms()">
+        TERMS & CONDITIONS
+      </button>
+      <button class="secondary" onclick="showPrivacy()">
+        PRIVACY POLICY
+      </button>
+      <button class="secondary" onclick="showSupport()">
+        SUPPORT
+      </button>
+    </main>
+    ${navHTML("more")}
+  `;
+}
+/* =========================================================
+   ABOUT
+========================================================= */
+function showAbout(){
+  document.getElementById("app").innerHTML = `
+    <div class="header">
+      <div class="logo">PROJECT <span>Z</span></div>
+      <div class="badge">ABOUT</div>
+    </div>
+    <main class="page">
+      <button class="back" onclick="showMore()">
+        ← BACK
+      </button>
+      <div class="title">
+        ABOUT<br>
+        <span>PROJECT Z</span>
+      </div>
+      <div class="document">
+        <h3>What is Project Z?</h3>
+        <p>
+          Project Z is a Telegram-native participation platform
+          designed around transparent daily phases, published
+          prize rules and real participation data.
+        </p>
+        <h3>Transparency</h3>
+        <p>
+          Project Z is designed not to display invented users,
+          invented entries, invented prize pools or invented winners.
+          If there are no participants, the platform shows zero.
+        </p>
+        <h3>Daily Phase</h3>
+        <p>
+          Each daily phase ends at 00:00 Moscow time.
+          The next phase begins after the previous phase is closed
+          and its results are processed.
+        </p>
+        <h3>Real Data</h3>
+        <p>
+          The final production version will connect the displayed
+          numbers to the backend. Until then, demo values are not
+          presented as real activity.
+        </p>
+      </div>
+    </main>
+  `;
+}
+/* =========================================================
+   PRIZE RULES
+========================================================= */
+function showRules(){
+  document.getElementById("app").innerHTML = `
+    <div class="header">
+      <div class="logo">PROJECT <span>Z</span></div>
+      <div class="badge">RULES</div>
+    </div>
+    <main class="page">
+      <button class="back" onclick="showMore()">
+        ← BACK
+      </button>
+      <div class="title">
+        GAME &<br>
+        <span>PRIZE RULES</span>
+      </div>
+      <div class="document">
+        <h3>1. Daily Phase</h3>
+        <p>
+          Each daily phase ends at 00:00 Moscow time.
+          Participation, entries and the prize pool are calculated
+          from verified transactions recorded by the backend.
+        </p>
+        <h3>2. Entry</h3>
+        <p>
+          The displayed daily entry price is $2.
+          No entry is considered valid until the payment has been
+          successfully confirmed by the official payment system.
+        </p>
+        <h3>3. First Participant</h3>
+        <p>
+          The first verified participant of each completed daily
+          phase is guaranteed to be included among that phase's
+          winners, subject to the published eligibility rules.
+        </p>
+        <h3>4. Prize Distribution</h3>
+        <p>
+          The planned number of winners according to the final
+          prize-pool range is:
+        </p>
+        <ul>
+          <li>$100–$300 → 10 winners</li>
+          <li>$300–$600 → 20 winners</li>
+          <li>$600–$1,200 → 30 winners</li>
+          <li>$1,200–$2,000 → 40 winners</li>
+          <li>$2,000–$4,000 → 50 winners</li>
+          <li>$4,000–$8,000 → 80 winners</li>
+          <li>$8,000–$12,000 → 100 winners</li>
+          <li>$12,000–$15,000 → 120 winners</li>
+          <li>$15,000–$25,000 → 185 winners</li>
+          <li>$25,000–$35,000 → 250 winners</li>
+          <li>$35,000–$50,000 → 350 winners</li>
+          <li>$50,000–$70,000 → 550 winners</li>
+          <li>$70,000–$130,000 → 1,000 winners</li>
+          <li>$130,000–$170,000 → 1,300 winners</li>
+          <li>$170,000–$250,000 → 2,000 winners</li>
+          <li>$250,000–$400,000 → 3,000 winners</li>
+          <li>$400,000–$650,000 → 5,000 winners</li>
+          <li>$650,000–$1,000,000 → 10,000 winners</li>
+          <li>$1,000,000–$2,000,000 → 30,000 winners</li>
+          <li>$2,000,000–$4,000,000 → 50,000 winners</li>
+          <li>$4,000,000–$10,000,000 → 100,000 winners</li>
+        </ul>
+        <h3>5. Important</h3>
+        <p>
+          The exact mathematical distribution of the prize among
+          individual winners must be published before real-money
+          operation begins. The production backend must use the
+          same published rules for every participant.
+        </p>
+        <h3>6. No Fake Activity</h3>
+        <p>
+          Project Z must not manufacture users, entries, pool
+          amounts or winners. If there is no real activity,
+          the public figures remain zero.
+        </p>
+      </div>
+    </main>
+  `;
+}
+/* =========================================================
+   TERMS
+========================================================= */
+function showTerms(){
+  document.getElementById("app").innerHTML = `
+    <div class="header">
+      <div class="logo">PROJECT <span>Z</span></div>
+      <div class="badge">TERMS</div>
+    </div>
+    <main class="page">
+      <button class="back" onclick="showMore()">
+        ← BACK
+      </button>
+      <div class="title">
+        TERMS &<br>
+        <span>CONDITIONS</span>
+      </div>
+      <div class="document">
+        <h3>1. Acceptance</h3>
+        <p>
+          By using Project Z, you acknowledge that you have read
+          and understood the applicable rules and conditions.
+        </p>
+        <h3>2. Eligibility</h3>
+        <p>
+          Participation is subject to applicable laws,
+          jurisdictional restrictions and the final eligibility
+          requirements of Project Z.
+        </p>
+        <h3>3. Payments</h3>
+        <p>
+          A participation entry is valid only after successful
+          confirmation by the official payment system.
+          Failed, reversed or unauthorized transactions are not
+          considered valid entries.
+        </p>
+        <h3>4. Results</h3>
+        <p>
+          Results must be calculated using the recorded entries
+          for the relevant completed phase and the published
+          prize rules.
+        </p>
+        <h3>5. Responsible Participation</h3>
+        <p>
+          Users should participate only where participation is
+          lawful and appropriate for them. Project Z should not
+          be used by anyone who is prohibited by applicable law
+          from participating.
+        </p>
+        <h3>6. Changes</h3>
+        <p>
+          Any material change to prize rules, entry rules or
+          eligibility requirements should be published before
+          becoming effective.
+        </p>
+      </div>
+    </main>
+  `;
+}
+/* =========================================================
+   PRIVACY
+========================================================= */
+function showPrivacy(){
+  document.getElementById("app").innerHTML = `
+    <div class="header">
+      <div class="logo">PROJECT <span>Z</span></div>
+      <div class="badge">PRIVACY</div>
+    </div>
+    <main class="page">
+      <button class="back" onclick="showMore()">
+        ← BACK
+      </button>
+      <div class="title">
+        PRIVACY<br>
+        <span>POLICY</span>
+      </div>
+      <div class="document">
+        <h3>Information Used</h3>
+        <p>
+          The production service may use information required
+          to operate a Telegram Mini App, process participation,
+          prevent abuse and maintain transaction records.
+        </p>
+        <h3>Telegram Information</h3>
+        <p>
+          The final implementation may receive permitted Telegram
+          account information through the Telegram Mini App
+          environment.
+        </p>
+        <h3>Payments</h3>
+        <p>
+          Payment-related information will be processed through
+          the selected payment infrastructure and according to
+          its applicable policies.
+        </p>
+        <h3>Security</h3>
+        <p>
+          Production access should be protected using secure
+          backend authentication, server-side validation and
+          appropriate database security.
+        </p>
+        <h3>Data Requests</h3>
+        <p>
+          The final production privacy policy will specify how
+          users can request access, correction or deletion where
+          required by applicable law.
+        </p>
+      </div>
+    </main>
+  `;
+}
+/* =========================================================
+   SUPPORT
+========================================================= */
+function showSupport(){
+  document.getElementById("app").innerHTML = `
+    <div class="header">
+      <div class="logo">PROJECT <span>Z</span></div>
+      <div class="badge">SUPPORT</div>
+    </div>
+    <main class="page">
+      <button class="back" onclick="showMore()">
+        ← BACK
+      </button>
+      <div class="title">
+        PROJECT Z<br>
+        <span>SUPPORT</span>
+      </div>
+      <div class="card">
+        <div class="info">
+          For account, payment or participation questions,
+          contact the official Project Z support channel.
+        </div>
+        <button class="primary"
+          onclick="alert('Official support contact will be added here.')">
+          CONTACT SUPPORT
+        </button>
+      </div>
+    </main>
+  `;
+}
+/* =========================================================
+   NAVIGATION
+========================================================= */
+document.addEventListener("click",function(event){
+  const nav = event.target.closest(".nav");
+  if(!nav) return;
+  const page = nav.dataset.page;
+  if(page==="home") showHome();
+  if(page==="play") showPlay();
+  if(page==="wallet") showWallet();
+  if(page==="referral") showReferral();
+  if(page==="more") showMore();
+});
+/* =========================================================
+   START
+========================================================= */
+showHome();
+updateCountdown();
 </script>
-
 </body>
 </html>
