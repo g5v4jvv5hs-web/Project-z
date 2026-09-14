@@ -481,7 +481,7 @@ async function createEntryInvoice(userId, phaseId) {
 
   return { link: result, payload };
 }
-       
+
    
 
   return { link: result, payload };
