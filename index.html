@@ -557,6 +557,10 @@
       val += Math.random() * 2.8 + 0.4;
       el.innerText = '$' + val.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
     }, 3500);
-  </script>
+  </script>document.querySelectorAll('.play-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    alert('Welcome to Project Z!');
+  });
+});
 </body>
 </html>
