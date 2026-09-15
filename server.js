@@ -300,7 +300,38 @@ const USDT_JETTON_MASTER =
 
 const AUTOMATIC_SETTLEMENT_ENABLED =
   false;
+const INVOICE_TTL_SECONDS =
+  intEnv(
+    "INVOICE_TTL_SECONDS",
+    900
+  );
 
+const INIT_DATA_MAX_AGE_SECONDS =
+  intEnv(
+    "INIT_DATA_MAX_AGE_SECONDS",
+    86400
+  );
+
+const REFUND_MAX_ATTEMPTS =
+  intEnv(
+    "REFUND_MAX_ATTEMPTS",
+    10
+  );
+
+const PAYMENT_REQUIRED_ENV = [
+  "BOT_TOKEN",
+  "DATABASE_URL",
+  "TELEGRAM_WEBHOOK_SECRET",
+];
+
+const missingPaymentEnv =
+  PAYMENT_REQUIRED_ENV.filter(
+    (key) =>
+      !process.env[key]
+  );
+
+let runtimeBotUsername =
+  BOT_USERNAME;
 
 /* =========================================================
    GENERIC HELPERS
