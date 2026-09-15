@@ -596,142 +596,289 @@ function showHome(){
       <div class="logo">PROJECT <span>Z</span></div>
       <div class="badge">TELEGRAM MINI APP</div>
     </div>
+
     <main class="page">
+
       <section class="hero">
         <div class="eyebrow">
           TRANSPARENT • FAIR • COMMUNITY
         </div>
+
         <div class="title">
           WIN BIG.<br>
           <span>PLAY FAIR.</span>
         </div>
+
         <div class="subtitle">
           Project Z is built around transparent participation.
           No fake users, no fake winners and no invented prize pool.
         </div>
+
         <div class="z-wrap">
           <div class="z">Z</div>
         </div>
+
         <button class="primary" onclick="showPlay()">
           PLAY NOW
         </button>
       </section>
+
+
       <section class="pool">
+
         <div class="pool-label">
           CURRENT PRIZE POOL
         </div>
+
         <div class="pool-value">
           ${money(projectData.pool)}
         </div>
+
         <div class="pool-note">
           Only real entries are added to the pool.
         </div>
+
         <div class="live">
           <span class="live-dot"></span>
           LIVE DATA
         </div>
+
         <div class="countdown">
+
           <div class="time">
             <div class="time-num" id="hours">00</div>
             <div class="time-label">Hours</div>
           </div>
+
           <div class="time">
             <div class="time-num" id="minutes">00</div>
             <div class="time-label">Minutes</div>
           </div>
+
           <div class="time">
             <div class="time-num" id="seconds">00</div>
             <div class="time-label">Seconds</div>
           </div>
+
         </div>
+
         <div class="pool-note">
           Next phase ends at 00:00 Moscow time.
         </div>
+
       </section>
+
+
       <div class="section-title">
         Live Statistics
       </div>
+
       <div class="stats">
+
         <div class="stat">
-          <div class="stat-value">${projectData.users}</div>
-          <div class="stat-label">REAL USERS</div>
+          <div class="stat-value">
+            ${projectData.users}
+          </div>
+          <div class="stat-label">
+            REAL USERS
+          </div>
         </div>
+
         <div class="stat">
-          <div class="stat-value">${money(projectData.pool)}</div>
-          <div class="stat-label">REAL POOL</div>
+          <div class="stat-value">
+            ${money(projectData.pool)}
+          </div>
+          <div class="stat-label">
+            REAL POOL
+          </div>
         </div>
+
         <div class="stat">
-          <div class="stat-value">$2</div>
-          <div class="stat-label">DAILY ENTRY</div>
+          <div class="stat-value">
+            $2
+          </div>
+          <div class="stat-label">
+            DAILY ENTRY
+          </div>
         </div>
+
         <div class="stat">
-          <div class="stat-value" id="nextDraw">00:00:00</div>
-          <div class="stat-label">UNTIL MOSCOW MIDNIGHT</div>
+          <div class="stat-value" id="nextDraw">
+            00:00:00
+          </div>
+          <div class="stat-label">
+            UNTIL MOSCOW MIDNIGHT
+          </div>
         </div>
+
       </div>
+
+
+      <div class="section-title">
+        Latest Participants
+      </div>
+
+      ${
+        projectData.participants.length === 0
+        ?
+        `
+        <div class="empty">
+
+          <div class="empty-icon">
+            ◇
+          </div>
+
+          <div class="empty-title">
+            No participants yet
+          </div>
+
+          <div class="empty-text">
+            Participants will appear here after real entries.
+          </div>
+
+        </div>
+        `
+        :
+        `
+        ${projectData.participants
+          .slice(0, 6)
+          .map(function(p){
+            return `
+              <div class="stat" style="margin-bottom:8px;">
+
+                <div class="stat-value">
+                  ${p.displayName}
+                </div>
+
+                <div class="stat-label">
+                  Participant
+                </div>
+
+              </div>
+            `;
+          })
+          .join("")}
+
+        <button class="primary" onclick="showAllParticipants()">
+          VIEW ALL PARTICIPANTS
+        </button>
+        `
+      }
+
+
       <div class="section-title">
         Why Project Z?
       </div>
+
       <div class="features">
+
         <div class="feature">
           <div class="icon">◇</div>
-          <div class="feature-title">Transparent</div>
+
+          <div class="feature-title">
+            Transparent
+          </div>
+
           <div class="feature-text">
             Real numbers only. No invented activity.
           </div>
         </div>
+
+
         <div class="feature">
           <div class="icon">◈</div>
-          <div class="feature-title">Fair</div>
+
+          <div class="feature-title">
+            Fair
+          </div>
+
           <div class="feature-text">
             Prize rules are published before participation.
           </div>
         </div>
+
+
         <div class="feature">
           <div class="icon">⚡</div>
-          <div class="feature-title">Simple</div>
+
+          <div class="feature-title">
+            Simple
+          </div>
+
           <div class="feature-text">
             Designed for a fast Telegram experience.
           </div>
         </div>
+
+
         <div class="feature">
           <div class="icon">◎</div>
-          <div class="feature-title">Verifiable</div>
+
+          <div class="feature-title">
+            Verifiable
+          </div>
+
           <div class="feature-text">
             Winners should come from real entries.
           </div>
         </div>
+
       </div>
+
+
       <div class="section-title">
         Latest Winners
       </div>
+
       ${
         projectData.winners.length === 0
         ?
         `
         <div class="empty">
-          <div class="empty-icon">◇</div>
-          <div class="empty-title">No winners yet</div>
+
+          <div class="empty-icon">
+            ◇
+          </div>
+
+          <div class="empty-title">
+            No winners yet
+          </div>
+
           <div class="empty-text">
             Winners will appear here only after a real completed phase.
           </div>
+
         </div>
         `
         :
-        projectData.winners.map(function(w){
-          return `
-            <div class="stat" style="margin-bottom:8px;">
-              <div class="stat-value">${w.name}</div>
-              <div class="stat-label">${w.prize}</div>
-            </div>
-          `;
-        }).join("")
+        projectData.winners
+          .map(function(w){
+            return `
+              <div class="stat" style="margin-bottom:8px;">
+
+                <div class="stat-value">
+                  ${w.name}
+                </div>
+
+                <div class="stat-label">
+                  ${w.prize}
+                </div>
+
+              </div>
+            `;
+          })
+          .join("")
       }
+
     </main>
+
     ${navHTML("home")}
   `;
+
   updateCountdown();
 }
+/* =========================================================
+   PLAY
 /* =========================================================
    PLAY
 ========================================================= */
