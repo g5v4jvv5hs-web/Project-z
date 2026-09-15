@@ -1,22 +1,24 @@
 {
   "name": "project-z-backend",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "check": "node --check server.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "dependencies": {
-    "express": "^5.1.0",
-    "cors": "^2.8.5",
-    "helmet": "^8.1.0",
-    "express-rate-limit": "^8.2.1",
-    "pg": "^8.16.3",
-    "@ton/ton": "^16.0.0",
-    "@ton/crypto": "^3.3.0"
+    "@ton/core": "0.63.1",
+    "@ton/ton": "16.3.0",
+    "cors": "2.8.5",
+    "express": "5.1.0",
+    "express-rate-limit": "8.2.1",
+    "helmet": "8.1.0",
+    "pg": "8.16.3",
+    "tweetnacl": "1.0.3"
   }
 }
