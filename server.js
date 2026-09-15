@@ -1436,7 +1436,6 @@ async function telegramApi(
     );
   }
 
-
   const response =
     await fetch(
       `https://api.telegram.org/bot${BOT_TOKEN}/${method}`,
@@ -1461,14 +1460,12 @@ async function telegramApi(
       }
     );
 
-
   const data =
     await response
       .json()
       .catch(
         () => ({})
       );
-
 
   if (
     !response.ok ||
@@ -1483,371 +1480,13 @@ async function telegramApi(
     );
   }
 
-
   return data.result;
 }
 
 
-async function ensureWebhook() {
-  if (
-    !APP_URL ||
-    !BOT_TOKEN ||
-    !TELEGRAM_WEBHOOK_SECRET
-  ) {
-    return false;
-  }
-
-
-  const webhookUrl =
-    `${APP_URL.replace(
-      /\/+$/,
-      ""
-    )}/telegram/webhook`;
-
-
-  try {
-    await telegramApi(
-      "setWebhook",
-      {
-        url:
-          webhookUrl,
-
-        secret_token:
-          TELEGRAM_WEBHOOK_SECRET,
-
-        allowed_updates: [
-          "message",
-          "pre_checkout_query",
-        ],
-
-        drop_pending_updates:
-          false,
-      }
-    );
-
-
-    console.log(
-      "Telegram webhook configured: true"
-    );
-
-
-    return true;
-  } catch (
-    error
-  ) {
-    console.error(
-      "Telegram webhook configuration failed:",
-      error.message
-    );
-
-
-    return false;
-  }
-}
 /* =========================================================
-   DATABASE SCHEMA
-====================================================== */
-
-function verifyInitData(
-  initData
-) {
-  if (
-    !initData ||
-    typeof initData !==
-      "string" ||
-    !BOT_TOKEN
-  ) {
-    return null;
-  }
-
-  try {
-    const params =
-      new URLSearchParams(
-        initData
-      );
-
-    const receivedHash =
-      params.get(
-        "hash"
-      );
-
-    if (
-      !receivedHash ||
-      !/^[a-fA-F0-9]{64}$/.test(
-        receivedHash
-      )
-    ) {
-      return null;
-    }
-
-    params.delete(
-      "hash"
-    );
-
-    const dataCheckString =
-      [
-        ...params.entries(),
-      ]
-        .sort(
-          (
-            [a],
-            [b]
-          ) =>
-            a.localeCompare(
-              b
-            )
-        )
-        .map(
-          (
-            [
-              key,
-              value,
-            ]
-          ) =>
-            `${key}=${value}`
-        )
-        .join(
-          "\n"
-        );
-
-    const secretKey =
-      crypto
-        .createHmac(
-          "sha256",
-          "WebAppData"
-        )
-        .update(
-          BOT_TOKEN
-        )
-        .digest();
-
-    const calculatedHash =
-      crypto
-        .createHmac(
-          "sha256",
-          secretKey
-        )
-        .update(
-          dataCheckString
-        )
-        .digest(
-          "hex"
-        );
-
-    if (
-      !timingSafeEqualText(
-        receivedHash.toLowerCase(),
-        calculatedHash.toLowerCase()
-      )
-    ) {
-      return null;
-    }
-
-    const authDate =
-      Number(
-        params.get(
-          "auth_date"
-        ) ||
-          0
-      );
-
-    if (
-      !Number.isSafeInteger(
-        authDate
-      ) ||
-      authDate <=
-        0
-    ) {
-      return null;
-    }
-
-    const now =
-      Math.floor(
-        Date.now() /
-          1000
-      );
-
-    const age =
-      now -
-      authDate;
-
-    if (
-      age <
-        -60 ||
-      age >
-        INIT_DATA_MAX_AGE_SECONDS
-    ) {
-      return null;
-    }
-
-    const rawUser =
-      params.get(
-        "user"
-      );
-
-    if (
-      !rawUser
-    ) {
-      return null;
-    }
-
-    const user =
-      JSON.parse(
-        rawUser
-      );
-
-    if (
-      !user ||
-      !Number.isSafeInteger(
-        user.id
-      ) ||
-      user.id <=
-        0
-    ) {
-      return null;
-    }
-
-    return {
-      user,
-
-      authDate,
-
-      queryId:
-        params.get(
-          "query_id"
-        ) ||
-        null,
-
-      startParam:
-        params.get(
-          "start_param"
-        ) ||
-        null,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function getInitData(
-  req
-) {
-  const headerValue =
-    req.headers[
-      "x-telegram-init-data"
-    ];
-
-  if (
-    typeof headerValue ===
-      "string" &&
-    headerValue.length
-  ) {
-    return headerValue;
-  }
-
-  if (
-    typeof req.body
-      ?.initData ===
-      "string"
-  ) {
-    return req.body
-      .initData;
-  }
-
-  return "";
-}
-
-function requireTelegramUser(
-  req,
-  res
-) {
-  const verified =
-    verifyInitData(
-      getInitData(
-        req
-      )
-    );
-
-  if (
-    !verified
-  ) {
-    res
-      .status(
-        401
-      )
-      .json({
-        error:
-          "Invalid or expired Telegram authorization.",
-      });
-
-    return null;
-  }
-
-  return verified;
-}
-
-/* =========================================================
-   TELEGRAM BOT API
+   TELEGRAM BOT IDENTITY
 ========================================================= */
-
-async function telegramApi(
-  method,
-  body = {}
-) {
-  if (
-    !BOT_TOKEN
-  ) {
-    throw new Error(
-      "BOT_TOKEN missing"
-    );
-  }
-
-  const response =
-    await fetch(
-      `https://api.telegram.org/bot${BOT_TOKEN}/${method}`,
-      {
-        method:
-          "POST",
-
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
-
-        body:
-          JSON.stringify(
-            body
-          ),
-
-        signal:
-          AbortSignal.timeout(
-            12_000
-          ),
-      }
-    );
-
-  const data =
-    await response
-      .json()
-      .catch(
-        () => ({})
-      );
-
-  if (
-    !response.ok ||
-    data.ok !==
-      true
-  ) {
-    throw new Error(
-      `Telegram ${method} failed: ${
-        data.description ||
-        response.status
-      }`
-    );
-  }
-
-  return data.result;
-}
 
 async function resolveBotIdentity() {
   if (
@@ -1863,8 +1502,7 @@ async function resolveBotIdentity() {
       );
 
     if (
-      me
-        ?.username
+      me?.username
     ) {
       runtimeBotUsername =
         String(
@@ -1895,6 +1533,11 @@ async function resolveBotIdentity() {
   }
 }
 
+
+/* =========================================================
+   TELEGRAM WEBHOOK
+========================================================= */
+
 async function ensureWebhook() {
   if (
     !APP_URL ||
@@ -1946,7 +1589,6 @@ async function ensureWebhook() {
     return false;
   }
 }
-
 /* =========================================================
    DATABASE SCHEMA
 ========================================================= */
