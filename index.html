@@ -566,42 +566,152 @@ function money(value){
     maximumFractionDigits:2
   });
 }
+
 function setNav(active){
   document.querySelectorAll(".nav").forEach(function(btn){
     btn.classList.remove("active");
   });
+
   const selected = document.querySelector(
     '.nav[data-page="' + active + '"]'
   );
+
   if(selected){
     selected.classList.add("active");
   }
 }
+
 function navHTML(active){
   return `
     <div class="bottom">
+
       <button class="nav ${active==="home"?"active":""}" data-page="home">
         <div class="nav-icon">⌂</div>
         <div>Home</div>
       </button>
+
       <button class="nav ${active==="play"?"active":""}" data-page="play">
         <div class="nav-icon">▶</div>
         <div>Play</div>
       </button>
+
       <button class="nav ${active==="wallet"?"active":""}" data-page="wallet">
         <div class="nav-icon">◉</div>
         <div>Wallet</div>
       </button>
+
       <button class="nav ${active==="referral"?"active":""}" data-page="referral">
         <div class="nav-icon">♧</div>
         <div>Referral</div>
       </button>
+
       <button class="nav ${active==="more"?"active":""}" data-page="more">
         <div class="nav-icon">☰</div>
         <div>More</div>
       </button>
+
     </div>
   `;
+}
+
+
+/* =========================================================
+   TON CONNECT
+   ========================================================= */
+
+let tonConnectUI = null;
+
+function initializeTonWallet(){
+
+  const container = document.getElementById("ton-connect");
+  const status = document.getElementById("ton-wallet-status");
+
+  if(!container){
+    return;
+  }
+
+  if(typeof TON_CONNECT_UI === "undefined"){
+
+    if(status){
+      status.textContent =
+        "TON Wallet connection is loading...";
+    }
+
+    setTimeout(() => {
+      initializeTonWallet();
+    }, 1000);
+
+    return;
+  }
+
+  if(tonConnectUI){
+    return;
+  }
+
+  try{
+
+    tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+
+      manifestUrl:
+        "https://g5v4jvv5hs-web.github.io/Project-z/tonconnect-manifest.json",
+
+      buttonRootId:
+        "ton-connect"
+
+    });
+
+    tonConnectUI.onStatusChange(function(wallet){
+
+      if(wallet){
+
+        const address =
+          wallet.account &&
+          wallet.account.address
+            ? wallet.account.address
+            : "";
+
+        if(status){
+
+          status.innerHTML =
+            "Wallet connected.<br>" +
+            "<span style='font-size:12px;word-break:break-all;'>" +
+            address +
+            "</span>";
+        }
+
+        console.log(
+          "TON wallet connected:",
+          address
+        );
+
+      }else{
+
+        if(status){
+          status.textContent =
+            "Connect your TON wallet to receive Project Z prize payments.";
+        }
+
+        console.log(
+          "TON wallet disconnected"
+        );
+
+      }
+
+    });
+
+  }catch(error){
+
+    console.error(
+      "TON Connect initialization failed:",
+      error
+    );
+
+    if(status){
+      status.textContent =
+        "Unable to initialize TON Wallet.";
+    }
+
+  }
 }
 /* =========================================================
    HOME
