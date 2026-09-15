@@ -1390,6 +1390,61 @@ app.get('/api/winners', async (req, res) => {
 /* =========================================================
    WEBHOOK SETUP + STARTUP
    ========================================================= */
+async function autoFinalizeExpiredPhases() {
+  const todayMoscow = getMoscowDateString();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `SELECT phase_date
+       FROM phases
+       WHERE phase_date < $1
+         AND status = 'open'
+       ORDER BY phase_date ASC
+       LIMIT 7`,
+      [todayMoscow]
+    );
+
+    for (const row of result.rows) {
+      const phaseDate = toDateOnlyString(row.phase_date);
+
+      try {
+        const response = await fetch(
+          `${APP_URL.replace(/\/$/, '')}/api/admin/finalize-phase`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Admin-Secret': ADMIN_SECRET
+            },
+            body: JSON.stringify({
+              phaseDate
+            })
+          }
+        );
+
+        const data = await response.json().catch(() => ({}));
+
+        console.log(
+          'Auto-finalize:',
+          phaseDate,
+          response.status,
+          data
+        );
+      } catch (error) {
+        console.error(
+          'Auto-finalize request failed:',
+          phaseDate,
+          error
+        );
+      }
+    }
+  } catch (error) {
+    console.error('Auto-finalize scan failed:', error);
+  } finally {
+    client.release();
+  }
+}
 
 async function configureTelegramWebhook() {
   if (!BOT_TOKEN || !WEBHOOK_SECRET || !APP_URL) {
@@ -1415,6 +1470,16 @@ async function configureTelegramWebhook() {
 async function start() {
   try {
     await initializeDatabase();
+
+    setInterval(() => {
+      autoFinalizeExpiredPhases().catch((error) => {
+        console.error('Auto-finalize interval error:', error);
+      });
+    }, 60 * 1000);
+
+    autoFinalizeExpiredPhases().catch((error) => {
+      console.error('Initial auto-finalize error:', error);
+    });
 
     app.listen(PORT, '0.0.0.0', async () => {
       console.log(`Project Z running on 0.0.0.0:${PORT}`);
