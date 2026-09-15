@@ -1,138 +1,177 @@
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
-import { Pool } from 'pg';
-import crypto from 'crypto';
-import { mnemonicToPrivateKey } from '@ton/crypto';
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import { Pool } from "pg";
+import crypto from "crypto";
+import nacl from "tweetnacl";
+import {
+  Address,
+  Cell,
+  contractAddress,
+  loadStateInit,
+} from "@ton/core";
+import {
+  WalletContractV1R1,
+  WalletContractV1R2,
+  WalletContractV1R3,
+  WalletContractV2R1,
+  WalletContractV2R2,
+  WalletContractV3R1,
+  WalletContractV3R2,
+  WalletContractV4,
+  WalletContractV5R1,
+} from "@ton/ton";
 
 const app = express();
-app.set('trust proxy', 1);
+app.set("trust proxy", 1);
 
 /* =========================================================
    CONFIG
 ========================================================= */
 
-const PORT = Number(process.env.PORT || 10000);
+const PORT = intEnv("PORT", 10000);
+const NODE_ENV = process.env.NODE_ENV || "production";
 
-const BOT_TOKEN =
-  process.env.BOT_TOKEN || '';
+const BOT_TOKEN = strEnv("BOT_TOKEN");
+const DATABASE_URL = strEnv("DATABASE_URL");
+const TELEGRAM_WEBHOOK_SECRET = strEnv("TELEGRAM_WEBHOOK_SECRET");
+const APP_URL = strEnv(
+  "APP_URL",
+  "https://project-z-zryq.onrender.com"
+);
 
-const DATABASE_URL =
-  process.env.DATABASE_URL || '';
+const FRONTEND_ORIGIN = strEnv(
+  "FRONTEND_ORIGIN",
+  "https://g5v4jvv5hs-web.github.io"
+);
 
-const WEBHOOK_SECRET =
-  process.env.TELEGRAM_WEBHOOK_SECRET || '';
+const BOT_USERNAME = strEnv(
+  "BOT_USERNAME",
+  "denddkilibot"
+).replace(/^@/, "");
 
-const APP_URL =
-  process.env.APP_URL || '';
+const ADMIN_SECRET = strEnv("ADMIN_SECRET");
 
-const ENTRY_STARS =
-  Number(
-    process.env.ENTRY_STARS ||
-      100
-  );
+const MOSCOW_TIME_ZONE = strEnv(
+  "MOSCOW_TIME_ZONE",
+  "Europe/Moscow"
+);
 
-const STAR_USD_RATE =
-  Number(
-    process.env.STAR_USD_RATE ||
-      0.00141
-  );
+const PAYMENTS_ENABLED = boolEnv(
+  "PAYMENTS_ENABLED",
+  true
+);
 
-const ENTRY_USD_DISPLAY =
-  Number(
-    process.env.ENTRY_USD_DISPLAY ||
-      2
-  );
+const ENTRY_STARS = intEnv(
+  "ENTRY_STARS",
+  100
+);
 
-const PAYMENTS_ENABLED =
-  process.env.PAYMENTS_ENABLED ===
-  'true';
+const STAR_USD_RATE = floatEnv(
+  "STAR_USD_RATE",
+  0.013
+);
 
-const ADMIN_SECRET =
-  process.env.ADMIN_SECRET || '';
+const ENTRY_USD_DISPLAY = floatEnv(
+  "ENTRY_USD_DISPLAY",
+  1.99
+);
 
-const BOT_USERNAME =
-  process.env.BOT_USERNAME || '';
+const WINNER_SHARE = floatEnv(
+  "WINNER_SHARE",
+  0.69
+);
 
-const MOSCOW_TIME_ZONE =
-  process.env.MOSCOW_TIME_ZONE ||
-  'Europe/Moscow';
+const CHARITY_SHARE = floatEnv(
+  "CHARITY_SHARE",
+  0.01
+);
 
-const FRONTEND_ORIGIN =
-  process.env.FRONTEND_ORIGIN ||
-  'https://g5v4jvv5hs-web.github.io';
+const OPERATIONS_SHARE = floatEnv(
+  "OPERATIONS_SHARE",
+  0.30
+);
 
-const TON_PROOF_DOMAIN =
-  process.env.TON_PROOF_DOMAIN ||
-  (() => {
-    try {
-      return new URL(
-        FRONTEND_ORIGIN
-      ).host;
-    } catch {
-      return '';
-    }
-  })();
+const TON_NETWORK = strEnv(
+  "TON_NETWORK",
+  "-239"
+);
 
-/* =========================================================
-   TREASURY
-========================================================= */
+const TON_PROOF_DOMAIN = strEnv(
+  "TON_PROOF_DOMAIN",
+  safeHost(FRONTEND_ORIGIN) ||
+    "g5v4jvv5hs-web.github.io"
+);
 
-const TREASURY_MNEMONIC =
-  process.env.TREASURY_MNEMONIC ||
-  '';
+const TON_PROOF_TTL_SECONDS = intEnv(
+  "TON_PROOF_TTL_SECONDS",
+  900
+);
 
-const TREASURY_WALLET_ADDRESS =
-  process.env.TREASURY_WALLET_ADDRESS ||
-  'UQAr2SdmjtiZmeNJiSFEslRjLv6YBn7BAaU7Dpd7KMi3Jf_q';
+const TREASURY_WALLET_ADDRESS = strEnv(
+  "TREASURY_WALLET_ADDRESS",
+  "UQAr2SdmjtiZmeNJiSFEslRjLv6YBn7BAaU7Dpd7KMi3Jf_q"
+);
 
-const USDT_JETTON_MASTER =
-  process.env.USDT_JETTON_MASTER ||
-  'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
+const USDT_JETTON_MASTER = strEnv(
+  "USDT_JETTON_MASTER",
+  "EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs"
+);
 
-let treasuryState = {
-  configured: Boolean(
-    TREASURY_MNEMONIC &&
-      TREASURY_WALLET_ADDRESS
-  ),
+const AUTOMATIC_SETTLEMENT_ENABLED =
+  false;
 
-  verified:
-    false,
-
-  version:
-    null,
-
-  address:
-    TREASURY_WALLET_ADDRESS ||
-    null
-};
-
-/* =========================================================
-   REQUIRED ENV
-========================================================= */
-
-const requiredEnv = [
-  'BOT_TOKEN',
-  'DATABASE_URL',
-  'TELEGRAM_WEBHOOK_SECRET',
-  'APP_URL',
-  'ENTRY_STARS'
+const REQUIRED_ENV = [
+  "BOT_TOKEN",
+  "DATABASE_URL",
+  "TELEGRAM_WEBHOOK_SECRET",
+  "APP_URL",
+  "ADMIN_SECRET",
 ];
 
 const missingEnv =
-  requiredEnv.filter(
+  REQUIRED_ENV.filter(
     (key) =>
       !process.env[key]
   );
 
-const paymentsReady =
-  PAYMENTS_ENABLED &&
-  missingEnv.length === 0 &&
-  Number.isInteger(
+if (
+  Math.abs(
+    WINNER_SHARE +
+      CHARITY_SHARE +
+      OPERATIONS_SHARE -
+      1
+  ) >
+  1e-9
+) {
+  throw new Error(
+    "WINNER_SHARE + CHARITY_SHARE + OPERATIONS_SHARE must equal 1"
+  );
+}
+
+if (
+  !Number.isInteger(
     ENTRY_STARS
-  ) &&
-  ENTRY_STARS > 0;
+  ) ||
+  ENTRY_STARS <=
+    0
+) {
+  throw new Error(
+    "ENTRY_STARS must be a positive integer"
+  );
+}
+
+if (
+  !(
+    STAR_USD_RATE >
+    0
+  )
+) {
+  throw new Error(
+    "STAR_USD_RATE must be greater than zero"
+  );
+}
 
 /* =========================================================
    DATABASE
@@ -144,11 +183,11 @@ const pool =
       DATABASE_URL,
 
     ssl:
-      process.env.NODE_ENV ===
-      'production'
+      NODE_ENV ===
+      "production"
         ? {
             rejectUnauthorized:
-              false
+              false,
           }
         : false,
 
@@ -156,38 +195,28 @@ const pool =
       20,
 
     idleTimeoutMillis:
-      30000,
+      30_000,
 
     connectionTimeoutMillis:
-      10000
+      10_000,
   });
 
 /* =========================================================
-   SECURITY / CORS
+   SECURITY / HTTP
 ========================================================= */
-
-function originOf(value) {
-  try {
-    return new URL(
-      value
-    ).origin;
-  } catch {
-    return null;
-  }
-}
 
 const allowedOrigins =
   new Set(
     [
-      originOf(
+      safeOrigin(
         APP_URL
       ),
 
-      originOf(
+      safeOrigin(
         FRONTEND_ORIGIN
       ),
 
-      'https://g5v4jvv5hs-web.github.io'
+      "https://g5v4jvv5hs-web.github.io",
     ].filter(
       Boolean
     )
@@ -196,7 +225,12 @@ const allowedOrigins =
 app.use(
   helmet({
     contentSecurityPolicy:
-      false
+      false,
+
+    crossOriginResourcePolicy: {
+      policy:
+        "cross-origin",
+    },
   })
 );
 
@@ -222,47 +256,178 @@ app.use(
     },
 
     methods: [
-      'GET',
-      'POST',
-      'OPTIONS'
+      "GET",
+      "POST",
+      "OPTIONS",
     ],
 
     allowedHeaders: [
-      'Content-Type',
-      'X-Telegram-Init-Data',
-      'X-Admin-Secret'
-    ]
+      "Content-Type",
+      "X-Telegram-Init-Data",
+      "X-Admin-Secret",
+    ],
   })
 );
 
 app.use(
   express.json({
     limit:
-      '64kb'
+      "64kb",
   })
 );
 
 app.use(
-  '/api/',
+  "/api/",
   rateLimit({
     windowMs:
-      60 *
-      1000,
+      60_000,
 
     max:
-      120,
+      180,
 
     standardHeaders:
       true,
 
     legacyHeaders:
-      false
+      false,
   })
 );
 
+const paymentLimiter =
+  rateLimit({
+    windowMs:
+      60_000,
+
+    max:
+      12,
+
+    standardHeaders:
+      true,
+
+    legacyHeaders:
+      false,
+  });
+
+const proofLimiter =
+  rateLimit({
+    windowMs:
+      60_000,
+
+    max:
+      30,
+
+    standardHeaders:
+      true,
+
+    legacyHeaders:
+      false,
+  });
+
 /* =========================================================
-   HELPERS
+   ENV / GENERIC HELPERS
 ========================================================= */
+
+function strEnv(
+  name,
+  fallback = ""
+) {
+  const value =
+    process.env[
+      name
+    ];
+
+  return (
+    typeof value ===
+      "string" &&
+    value.length
+      ? value
+      : fallback
+  );
+}
+
+function intEnv(
+  name,
+  fallback
+) {
+  const n =
+    Number(
+      process.env[
+        name
+      ]
+    );
+
+  return Number.isInteger(
+    n
+  )
+    ? n
+    : fallback;
+}
+
+function floatEnv(
+  name,
+  fallback
+) {
+  const n =
+    Number(
+      process.env[
+        name
+      ]
+    );
+
+  return Number.isFinite(
+    n
+  )
+    ? n
+    : fallback;
+}
+
+function boolEnv(
+  name,
+  fallback = false
+) {
+  const value =
+    process.env[
+      name
+    ];
+
+  if (
+    value ==
+    null
+  ) {
+    return fallback;
+  }
+
+  return (
+    String(
+      value
+    ).toLowerCase() ===
+    "true"
+  );
+}
+
+function safeOrigin(
+  value
+) {
+  try {
+    return new URL(
+      value
+    ).origin;
+  } catch {
+    return null;
+  }
+}
+
+function safeHost(
+  value
+) {
+  try {
+    return new URL(
+      value
+    ).host;
+  } catch {
+    return null;
+  }
+}
 
 function safeJson(
   value
@@ -277,75 +442,55 @@ function safeJson(
   }
 }
 
-function getMoscowDateString(
-  date =
-    new Date()
-) {
-  return new Intl
-    .DateTimeFormat(
-      'en-CA',
-      {
-        timeZone:
-          MOSCOW_TIME_ZONE,
-
-        year:
-          'numeric',
-
-        month:
-          '2-digit',
-
-        day:
-          '2-digit'
-      }
-    )
-    .format(
-      date
-    );
-}
-
-function toDateOnlyString(
+function sha256Buffer(
   value
 ) {
-  if (!value) {
-    return null;
-  }
-
-  if (
-    typeof value ===
-    'string'
-  ) {
-    return value.slice(
-      0,
-      10
-    );
-  }
-
-  if (
-    value instanceof
-    Date
-  ) {
-    return getMoscowDateString(
+  return crypto
+    .createHash(
+      "sha256"
+    )
+    .update(
       value
-    );
-  }
-
-  return String(
-    value
-  ).slice(
-    0,
-    10
-  );
+    )
+    .digest();
 }
 
-function timingSafeStringEqual(
+function sha256Hex(
+  value
+) {
+  return crypto
+    .createHash(
+      "sha256"
+    )
+    .update(
+      value
+    )
+    .digest(
+      "hex"
+    );
+}
+
+function randomToken(
+  bytes = 32
+) {
+  return crypto
+    .randomBytes(
+      bytes
+    )
+    .toString(
+      "base64url"
+    );
+}
+
+function timingSafeEqualText(
   a,
   b
 ) {
   if (
     typeof a !==
-      'string' ||
+      "string" ||
     typeof b !==
-      'string'
+      "string"
   ) {
     return false;
   }
@@ -370,267 +515,368 @@ function timingSafeStringEqual(
   );
 }
 
-function sha256(
-  buffer
+function getMoscowDateString(
+  date =
+    new Date()
 ) {
-  return crypto
-    .createHash(
-      'sha256'
-    )
-    .update(
-      buffer
-    )
-    .digest();
+  const parts =
+    new Intl.DateTimeFormat(
+      "en-CA",
+      {
+        timeZone:
+          MOSCOW_TIME_ZONE,
+
+        year:
+          "numeric",
+
+        month:
+          "2-digit",
+
+        day:
+          "2-digit",
+      }
+    ).formatToParts(
+      date
+    );
+
+  const bag =
+    Object.fromEntries(
+      parts
+        .filter(
+          (part) =>
+            part.type !==
+            "literal"
+        )
+        .map(
+          (part) => [
+            part.type,
+            part.value,
+          ]
+        )
+    );
+
+  return `${bag.year}-${bag.month}-${bag.day}`;
 }
 
-async function audit(
-  client,
-  eventType,
-  actorTelegramId =
-    null,
-  phaseId =
-    null,
-  payload =
-    null
+function toDateOnlyString(
+  value
 ) {
-  await client.query(
-    `
-    INSERT INTO audit_logs (
-      event_type,
-      actor_telegram_id,
-      phase_id,
-      payload
-    )
-    VALUES (
-      $1,
-      $2,
-      $3,
-      $4
-    )
-    `,
+  if (!value) {
+    return null;
+  }
+
+  if (
+    typeof value ===
+    "string"
+  ) {
+    return value.slice(
+      0,
+      10
+    );
+  }
+
+  if (
+    value instanceof
+    Date
+  ) {
+    const parts =
+      new Intl.DateTimeFormat(
+        "en-CA",
+        {
+          timeZone:
+            "UTC",
+
+          year:
+            "numeric",
+
+          month:
+            "2-digit",
+
+          day:
+            "2-digit",
+        }
+      ).formatToParts(
+        value
+      );
+
+    const bag =
+      Object.fromEntries(
+        parts
+          .filter(
+            (part) =>
+              part.type !==
+              "literal"
+          )
+          .map(
+            (part) => [
+              part.type,
+              part.value,
+            ]
+          )
+      );
+
+    return `${bag.year}-${bag.month}-${bag.day}`;
+  }
+
+  return String(
+    value
+  ).slice(
+    0,
+    10
+  );
+}
+
+function isPastMoscowDate(
+  phaseDate
+) {
+  return (
+    toDateOnlyString(
+      phaseDate
+    ) <
+    getMoscowDateString()
+  );
+}
+
+function displayNameFromTelegramUser(
+  user
+) {
+  const name =
     [
-      eventType,
-      actorTelegramId,
-      phaseId,
-      safeJson(
-        payload
-      )
+      user
+        ?.first_name,
+
+      user
+        ?.last_name,
     ]
+      .filter(
+        Boolean
+      )
+      .join(
+        " "
+      )
+      .trim();
+
+  if (name) {
+    return name.slice(
+      0,
+      120
+    );
+  }
+
+  if (
+    user
+      ?.username
+  ) {
+    return `@${String(
+      user.username
+    ).slice(
+      0,
+      120
+    )}`;
+  }
+
+  return `User ${
+    user
+      ?.id ??
+    ""
+  }`.trim();
+}
+
+function grossUsdFromStars(
+  stars
+) {
+  return (
+    Number(
+      stars ||
+        0
+    ) *
+    STAR_USD_RATE
+  );
+}
+
+function money6(
+  value
+) {
+  return (
+    Math.round(
+      Number(
+        value ||
+          0
+      ) *
+        1_000_000
+    ) /
+    1_000_000
   );
 }
 
 /* =========================================================
-   TREASURY VERIFY
-   DOES NOT SEND MONEY
-========================================================= */
-/* =========================================================
-   TREASURY VERIFY
-   DOES NOT SEND MONEY
+   BUSINESS RULES
 ========================================================= */
 
-async function verifyTreasuryWallet() {
-  treasuryState = {
-    configured:
-      Boolean(
-        TREASURY_MNEMONIC &&
-          TREASURY_WALLET_ADDRESS
-      ),
-
-    verified:
-      false,
-
-    version:
-      null,
-
-    address:
-      TREASURY_WALLET_ADDRESS ||
-      null
-  };
+function winnerCountForGrossUsd(
+  usd
+) {
+  if (
+    !Number.isFinite(
+      usd
+    ) ||
+    usd <
+      100
+  ) {
+    return 0;
+  }
 
   if (
-    !treasuryState
-      .configured
+    usd <
+    300
   ) {
-    console.log(
-      'Treasury verification skipped: configuration incomplete.'
-    );
-
-    return false;
+    return 10;
   }
 
-  try {
-    const words =
-      TREASURY_MNEMONIC
-        .trim()
-        .split(
-          /\s+/
-        )
-        .filter(
-          Boolean
-        );
-
-    if (
-      ![12, 24].includes(
-        words.length
-      )
-    ) {
-      throw new Error(
-        `Expected 12 or 24 mnemonic words, received ${words.length}`
-      );
-    }
-
-    const keyPair =
-      await mnemonicToPrivateKey(
-        words
-      );
-
-    const {
-      Address,
-      WalletContractV4,
-      WalletContractV5R1
-    } =
-      await import(
-        '@ton/ton'
-      );
-
-    const expected =
-      Address.parse(
-        TREASURY_WALLET_ADDRESS
-      );
-
-    const candidates =
-      [];
-
-    try {
-      const wallet =
-        WalletContractV5R1.create({
-          workchain:
-            0,
-
-          publicKey:
-            keyPair.publicKey,
-
-          walletId: {
-            networkGlobalId:
-              -239
-          }
-        });
-
-      candidates.push({
-        version:
-          'V5R1',
-
-        address:
-          wallet.address
-      });
-    } catch (
-      error
-    ) {
-      console.log(
-        'V5R1 treasury derivation unavailable:',
-        error.message
-      );
-    }
-
-    try {
-      const wallet =
-        WalletContractV4.create({
-          workchain:
-            0,
-
-          publicKey:
-            keyPair.publicKey
-        });
-
-      candidates.push({
-        version:
-          'V4R2',
-
-        address:
-          wallet.address
-      });
-    } catch (
-      error
-    ) {
-      console.log(
-        'V4R2 treasury derivation unavailable:',
-        error.message
-      );
-    }
-
-    const match =
-      candidates.find(
-        (
-          candidate
-        ) =>
-          candidate
-            .address
-            .equals(
-              expected
-            )
-      );
-
-    if (!match) {
-      console.error(
-        'Treasury verification FAILED: mnemonic does not match configured wallet.'
-      );
-
-      for (
-        const candidate
-        of candidates
-      ) {
-        console.log(
-          `Treasury candidate ${candidate.version}: ${candidate.address.toString()}`
-        );
-      }
-
-      return false;
-    }
-
-    treasuryState = {
-      configured:
-        true,
-
-      verified:
-        true,
-
-      version:
-        match.version,
-
-      address:
-        match.address.toString()
-    };
-
-    console.log(
-      'Treasury wallet VERIFIED ✅'
-    );
-
-    console.log(
-      `Treasury wallet version: ${match.version}`
-    );
-
-    console.log(
-      `Treasury wallet address: ${match.address.toString()}`
-    );
-
-    console.log(
-      'Automatic on-chain settlement: DISABLED'
-    );
-
-    return true;
-  } catch (
-    error
+  if (
+    usd <
+    600
   ) {
-    console.error(
-      'Treasury verification error:',
-      error.message
-    );
-
-    return false;
+    return 20;
   }
+
+  if (
+    usd <
+    1200
+  ) {
+    return 30;
+  }
+
+  if (
+    usd <
+    2000
+  ) {
+    return 40;
+  }
+
+  if (
+    usd <
+    4000
+  ) {
+    return 50;
+  }
+
+  if (
+    usd <
+    8000
+  ) {
+    return 80;
+  }
+
+  if (
+    usd <
+    12000
+  ) {
+    return 100;
+  }
+
+  if (
+    usd <
+    15000
+  ) {
+    return 120;
+  }
+
+  if (
+    usd <
+    25000
+  ) {
+    return 185;
+  }
+
+  if (
+    usd <
+    35000
+  ) {
+    return 250;
+  }
+
+  if (
+    usd <
+    50000
+  ) {
+    return 350;
+  }
+
+  if (
+    usd <
+    70000
+  ) {
+    return 550;
+  }
+
+  if (
+    usd <
+    130000
+  ) {
+    return 1000;
+  }
+
+  if (
+    usd <
+    170000
+  ) {
+    return 1300;
+  }
+
+  if (
+    usd <
+    250000
+  ) {
+    return 2000;
+  }
+
+  if (
+    usd <
+    400000
+  ) {
+    return 3000;
+  }
+
+  if (
+    usd <
+    650000
+  ) {
+    return 50000;
+  }
+
+  if (
+    usd <
+    1000000
+  ) {
+    return 10000;
+  }
+
+  if (
+    usd <
+    2000000
+  ) {
+    return 30000;
+  }
+
+  if (
+    usd <
+    4000000
+  ) {
+    return 50000;
+  }
+
+  if (
+    usd <
+    10000000
+  ) {
+    return 100000;
+  }
+
+  return 100000;
 }
 /* =========================================================
-   TELEGRAM INIT DATA
+   TELEGRAM MINI APP INIT DATA
 ========================================================= */
 
 function verifyInitData(
@@ -639,7 +885,7 @@ function verifyInitData(
   if (
     !initData ||
     typeof initData !==
-      'string' ||
+      "string" ||
     !BOT_TOKEN
   ) {
     return null;
@@ -653,7 +899,7 @@ function verifyInitData(
 
     const receivedHash =
       params.get(
-        'hash'
+        "hash"
       );
 
     if (
@@ -666,15 +912,18 @@ function verifyInitData(
     }
 
     params.delete(
-      'hash'
+      "hash"
     );
 
     const dataCheckString =
       [
-        ...params.entries()
+        ...params.entries(),
       ]
         .sort(
-          ([a], [b]) =>
+          (
+            [a],
+            [b]
+          ) =>
             a.localeCompare(
               b
             )
@@ -683,20 +932,20 @@ function verifyInitData(
           (
             [
               key,
-              value
+              value,
             ]
           ) =>
             `${key}=${value}`
         )
         .join(
-          '\n'
+          "\n"
         );
 
     const secretKey =
       crypto
         .createHmac(
-          'sha256',
-          'WebAppData'
+          "sha256",
+          "WebAppData"
         )
         .update(
           BOT_TOKEN
@@ -706,20 +955,19 @@ function verifyInitData(
     const calculatedHash =
       crypto
         .createHmac(
-          'sha256',
+          "sha256",
           secretKey
         )
         .update(
           dataCheckString
         )
         .digest(
-          'hex'
+          "hex"
         );
 
     if (
-      !timingSafeStringEqual(
-        receivedHash
-          .toLowerCase(),
+      !timingSafeEqualText(
+        receivedHash.toLowerCase(),
         calculatedHash
       )
     ) {
@@ -729,7 +977,7 @@ function verifyInitData(
     const authDate =
       Number(
         params.get(
-          'auth_date'
+          "auth_date"
         ) ||
           0
       );
@@ -744,25 +992,28 @@ function verifyInitData(
       return null;
     }
 
-    const age =
+    const now =
       Math.floor(
         Date.now() /
           1000
-      ) -
+      );
+
+    const age =
+      now -
       authDate;
 
     if (
       age <
         -60 ||
       age >
-        86400
+        86_400
     ) {
       return null;
     }
 
     const rawUser =
       params.get(
-        'user'
+        "user"
       );
 
     if (!rawUser) {
@@ -785,7 +1036,23 @@ function verifyInitData(
       return null;
     }
 
-    return user;
+    return {
+      user,
+
+      authDate,
+
+      queryId:
+        params.get(
+          "query_id"
+        ) ||
+        null,
+
+      startParam:
+        params.get(
+          "start_param"
+        ) ||
+        null,
+    };
   } catch {
     return null;
   }
@@ -796,16 +1063,43 @@ function getInitData(
 ) {
   return (
     req.headers[
-      'x-telegram-init-data'
+      "x-telegram-init-data"
     ] ||
     req.body
       ?.initData ||
-    ''
+    ""
   );
 }
 
+function requireTelegramUser(
+  req,
+  res
+) {
+  const verified =
+    verifyInitData(
+      getInitData(
+        req
+      )
+    );
+
+  if (!verified) {
+    res
+      .status(
+        401
+      )
+      .json({
+        error:
+          "Invalid or expired Telegram authorization.",
+      });
+
+    return null;
+  }
+
+  return verified;
+}
+
 /* =========================================================
-   TELEGRAM API
+   TELEGRAM BOT API
 ========================================================= */
 
 async function telegramApi(
@@ -814,7 +1108,7 @@ async function telegramApi(
 ) {
   if (!BOT_TOKEN) {
     throw new Error(
-      'BOT_TOKEN missing'
+      "BOT_TOKEN missing"
     );
   }
 
@@ -823,11 +1117,11 @@ async function telegramApi(
       `https://api.telegram.org/bot${BOT_TOKEN}/${method}`,
       {
         method:
-          'POST',
+          "POST",
 
         headers: {
-          'Content-Type':
-            'application/json'
+          "Content-Type":
+            "application/json",
         },
 
         body:
@@ -837,565 +1131,395 @@ async function telegramApi(
 
         signal:
           AbortSignal.timeout(
-            10000
-          )
+            12_000
+          ),
       }
     );
 
   const data =
-    await response.json();
+    await response
+      .json()
+      .catch(
+        () => ({})
+      );
 
   if (
     !response.ok ||
-    !data.ok
+    data.ok !==
+      true
   ) {
     throw new Error(
-      data.description ||
-        `Telegram ${method} failed`
+      `Telegram ${method} failed: ${
+        data.description ||
+        response.status
+      }`
     );
   }
 
   return data.result;
 }
 
+async function ensureWebhook() {
+  if (
+    !APP_URL ||
+    !BOT_TOKEN ||
+    !TELEGRAM_WEBHOOK_SECRET
+  ) {
+    return false;
+  }
+
+  const webhookUrl =
+    `${APP_URL.replace(
+      /\/+$/,
+      ""
+    )}/telegram/webhook`;
+
+  try {
+    await telegramApi(
+      "setWebhook",
+      {
+        url:
+          webhookUrl,
+
+        secret_token:
+          TELEGRAM_WEBHOOK_SECRET,
+
+        allowed_updates: [
+          "message",
+          "pre_checkout_query",
+        ],
+
+        drop_pending_updates:
+          false,
+      }
+    );
+
+    console.log(
+      "Telegram webhook configured: true"
+    );
+
+    return true;
+  } catch (
+    error
+  ) {
+    console.error(
+      "Telegram webhook configuration failed:",
+      error.message
+    );
+
+    return false;
+  }
+}
+
 /* =========================================================
-   DATABASE INITIALIZATION
+   DATABASE SCHEMA
 ========================================================= */
 
-async function initializeDatabase() {
+async function initDb() {
   const client =
     await pool.connect();
 
   try {
     await client.query(
-      'BEGIN'
+      "BEGIN"
     );
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id BIGSERIAL PRIMARY KEY,
-
         telegram_id BIGINT NOT NULL UNIQUE,
-
         username TEXT,
-
         first_name TEXT,
-
         last_name TEXT,
-
         language_code TEXT,
-
         is_premium BOOLEAN DEFAULT FALSE,
-
+        display_name TEXT,
         ton_wallet_address TEXT,
-
         ton_wallet_public_key TEXT,
-
         ton_wallet_chain INTEGER,
-
         ton_wallet_verified_at TIMESTAMPTZ,
-
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
+      );
 
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS ton_proof_challenges (
-        id BIGSERIAL PRIMARY KEY,
-
-        telegram_user_id BIGINT NOT NULL,
-
-        nonce TEXT NOT NULL UNIQUE,
-
-        domain TEXT NOT NULL,
-
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-        expires_at TIMESTAMPTZ NOT NULL,
-
-        used_at TIMESTAMPTZ
-      )
-    `);
-
-    await client.query(`
       CREATE TABLE IF NOT EXISTS phases (
         id BIGSERIAL PRIMARY KEY,
-
         phase_date DATE NOT NULL UNIQUE,
-
         status TEXT NOT NULL DEFAULT 'open',
-
-        total_stars NUMERIC(30,0) NOT NULL DEFAULT 0,
-
-        winner_pool_stars NUMERIC(30,0) NOT NULL DEFAULT 0,
-
-        charity_stars NUMERIC(30,0) NOT NULL DEFAULT 0,
-
-        operations_stars NUMERIC(30,0) NOT NULL DEFAULT 0,
-
+        total_stars NUMERIC NOT NULL DEFAULT 0,
+        winner_pool_stars NUMERIC NOT NULL DEFAULT 0,
+        charity_stars NUMERIC NOT NULL DEFAULT 0,
+        operations_stars NUMERIC NOT NULL DEFAULT 0,
         winner_count INTEGER NOT NULL DEFAULT 0,
-
         first_verified_entry_id BIGINT,
-
+        entry_count BIGINT NOT NULL DEFAULT 0,
+        paid_entry_count BIGINT NOT NULL DEFAULT 0,
+        free_entry_count BIGINT NOT NULL DEFAULT 0,
+        gross_usd NUMERIC(20,6) NOT NULL DEFAULT 0,
+        winner_pool_usd NUMERIC(20,6) NOT NULL DEFAULT 0,
+        charity_usd NUMERIC(20,6) NOT NULL DEFAULT 0,
+        operations_usd NUMERIC(20,6) NOT NULL DEFAULT 0,
+        draw_commit_hash TEXT,
+        draw_seed_secret TEXT,
+        draw_reveal TEXT,
         finalized_at TIMESTAMPTZ,
-
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
+      );
 
-    await client.query(`
       CREATE TABLE IF NOT EXISTS invoices (
         id BIGSERIAL PRIMARY KEY,
-
         invoice_token TEXT NOT NULL UNIQUE,
-
         telegram_user_id BIGINT NOT NULL,
-
-        phase_id BIGINT NOT NULL
-          REFERENCES phases(id),
-
-        stars_amount NUMERIC(30,0) NOT NULL,
-
+        phase_id BIGINT NOT NULL REFERENCES phases(id) ON DELETE CASCADE,
+        stars_amount NUMERIC NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'XTR',
         payload TEXT NOT NULL UNIQUE,
-
         status TEXT NOT NULL DEFAULT 'created',
-
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        expires_at TIMESTAMPTZ NOT NULL,
+        paid_at TIMESTAMPTZ
+      );
 
-        expires_at TIMESTAMPTZ NOT NULL
-      )
-    `);
-
-    await client.query(`
       CREATE TABLE IF NOT EXISTS payments (
         id BIGSERIAL PRIMARY KEY,
-
         telegram_payment_charge_id TEXT NOT NULL UNIQUE,
-
+        provider_payment_charge_id TEXT,
         telegram_user_id BIGINT NOT NULL,
-
-        phase_id BIGINT NOT NULL
-          REFERENCES phases(id),
-
-        stars_amount NUMERIC(30,0) NOT NULL,
-
+        phase_id BIGINT NOT NULL REFERENCES phases(id) ON DELETE CASCADE,
+        stars_amount NUMERIC NOT NULL,
         currency TEXT NOT NULL,
-
         invoice_payload TEXT NOT NULL,
-
         status TEXT NOT NULL,
-
+        raw_payment JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         refund_attempts INTEGER NOT NULL DEFAULT 0,
-
         refund_last_error TEXT,
-
         last_refund_attempt_at TIMESTAMPTZ,
+        refunded_at TIMESTAMPTZ
+      );
 
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-
-    await client.query(`
       CREATE TABLE IF NOT EXISTS payment_reconciliations (
         id BIGSERIAL PRIMARY KEY,
-
         telegram_payment_charge_id TEXT UNIQUE,
-
         telegram_user_id BIGINT,
-
         invoice_payload TEXT,
-
         currency TEXT,
-
-        stars_amount NUMERIC(30,0),
-
+        stars_amount NUMERIC,
         reason TEXT NOT NULL,
-
         status TEXT NOT NULL DEFAULT 'needs_review',
-
         raw_payload JSONB,
-
+        attempts INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
+      );
 
-    await client.query(`
       CREATE TABLE IF NOT EXISTS entries (
         id BIGSERIAL PRIMARY KEY,
-
         telegram_user_id BIGINT NOT NULL,
-
-        phase_id BIGINT NOT NULL
-          REFERENCES phases(id),
-
-        payment_id BIGINT
-          REFERENCES payments(id),
-
+        phase_id BIGINT NOT NULL REFERENCES phases(id) ON DELETE CASCADE,
+        payment_id BIGINT REFERENCES payments(id),
+        source TEXT NOT NULL DEFAULT 'paid',
         is_free BOOLEAN NOT NULL DEFAULT FALSE,
-
         is_first_payer BOOLEAN NOT NULL DEFAULT FALSE,
-
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (telegram_user_id, phase_id)
+      );
 
-        UNIQUE (
-          telegram_user_id,
-          phase_id
-        )
-      )
-    `);
-
-    await client.query(`
       CREATE TABLE IF NOT EXISTS referral_links (
         id BIGSERIAL PRIMARY KEY,
-
         referrer_id BIGINT NOT NULL,
-
-        phase_id BIGINT NOT NULL
-          REFERENCES phases(id),
-
+        phase_id BIGINT NOT NULL REFERENCES phases(id) ON DELETE CASCADE,
         code TEXT NOT NULL UNIQUE,
-
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (referrer_id, phase_id)
+      );
 
-        UNIQUE (
-          referrer_id,
-          phase_id
-        )
-      )
-    `);
-
-    await client.query(`
       CREATE TABLE IF NOT EXISTS referral_attachments (
         id BIGSERIAL PRIMARY KEY,
-
         referred_user_id BIGINT NOT NULL,
-
         referrer_id BIGINT NOT NULL,
-
-        phase_id BIGINT NOT NULL
-          REFERENCES phases(id),
-
-        referral_link_id BIGINT
-          REFERENCES referral_links(id),
-
+        phase_id BIGINT NOT NULL REFERENCES phases(id) ON DELETE CASCADE,
+        referral_link_id BIGINT REFERENCES referral_links(id),
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (referred_user_id, phase_id)
+      );
 
-        UNIQUE (
-          referred_user_id,
-          phase_id
-        )
-      )
-    `);
-
-    await client.query(`
       CREATE TABLE IF NOT EXISTS referral_conversions (
         id BIGSERIAL PRIMARY KEY,
-
         referred_user_id BIGINT NOT NULL,
-
         referrer_id BIGINT NOT NULL,
-
-        phase_id BIGINT NOT NULL
-          REFERENCES phases(id),
-
-        payment_id BIGINT NOT NULL
-          REFERENCES payments(id),
-
+        phase_id BIGINT NOT NULL REFERENCES phases(id) ON DELETE CASCADE,
+        payment_id BIGINT NOT NULL REFERENCES payments(id),
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (referred_user_id, phase_id)
+      );
 
-        UNIQUE (
-          referred_user_id,
-          phase_id
-        )
-      )
-    `);
-
-    await client.query(`
       CREATE TABLE IF NOT EXISTS free_entry_grants (
         id BIGSERIAL PRIMARY KEY,
-
         telegram_user_id BIGINT NOT NULL,
-
-        phase_id BIGINT NOT NULL
-          REFERENCES phases(id),
-
+        phase_id BIGINT NOT NULL REFERENCES phases(id) ON DELETE CASCADE,
         reason TEXT NOT NULL,
-
+        required_referrals INTEGER NOT NULL DEFAULT 2,
+        status TEXT NOT NULL DEFAULT 'available',
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        claimed_at TIMESTAMPTZ,
+        UNIQUE (telegram_user_id, phase_id)
+      );
 
-        UNIQUE (
-          telegram_user_id,
-          phase_id
-        )
-      )
-    `);
-
-    await client.query(`
       CREATE TABLE IF NOT EXISTS winners (
         id BIGSERIAL PRIMARY KEY,
-
-        phase_id BIGINT NOT NULL
-          REFERENCES phases(id),
-
-        entry_id BIGINT NOT NULL UNIQUE,
-
+        phase_id BIGINT NOT NULL REFERENCES phases(id) ON DELETE CASCADE,
+        entry_id BIGINT NOT NULL UNIQUE REFERENCES entries(id),
         telegram_user_id BIGINT NOT NULL,
-
         rank INTEGER NOT NULL,
-
-        prize_stars NUMERIC(30,0) NOT NULL,
-
+        prize_stars NUMERIC NOT NULL,
         is_first_payer BOOLEAN NOT NULL DEFAULT FALSE,
-
+        prize_usd NUMERIC(20,6) NOT NULL DEFAULT 0,
+        prize_stars_equiv NUMERIC(20,6) NOT NULL DEFAULT 0,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (phase_id, rank)
+      );
 
-        UNIQUE (
-          phase_id,
-          rank
-        )
-      )
-    `);
-
-    await client.query(`
       CREATE TABLE IF NOT EXISTS payouts (
         id BIGSERIAL PRIMARY KEY,
-
-        phase_id BIGINT NOT NULL
-          REFERENCES phases(id)
-          ON DELETE CASCADE,
-
-        winner_id BIGINT NOT NULL
-          REFERENCES winners(id)
-          ON DELETE CASCADE,
-
+        phase_id BIGINT NOT NULL REFERENCES phases(id),
+        winner_id BIGINT NOT NULL UNIQUE REFERENCES winners(id),
         telegram_user_id BIGINT NOT NULL,
-
-        amount_stars NUMERIC(30,0) NOT NULL
-          CHECK (
-            amount_stars > 0
-          ),
-
+        amount_stars INTEGER NOT NULL CHECK (amount_stars > 0),
         prize_usd NUMERIC(20,6),
-
         usdt_amount_micro BIGINT,
-
         settlement_asset TEXT NOT NULL DEFAULT 'USDT_TON',
-
-        status TEXT NOT NULL DEFAULT 'pending',
-
         ton_wallet_address TEXT,
-
+        status TEXT NOT NULL DEFAULT 'pending',
+        telegram_transaction_id TEXT,
         ton_tx_hash TEXT,
-
         settlement_reference TEXT,
-
         failure_reason TEXT,
-
         processing_at TIMESTAMPTZ,
-
         paid_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
 
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CREATE TABLE IF NOT EXISTS ton_proof_challenges (
+        id BIGSERIAL PRIMARY KEY,
+        telegram_user_id BIGINT NOT NULL,
+        nonce TEXT NOT NULL UNIQUE,
+        domain TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
 
-        UNIQUE (
-          winner_id
-        )
-      )
-    `);
-
-    await client.query(`
       CREATE TABLE IF NOT EXISTS allocations (
         id BIGSERIAL PRIMARY KEY,
-
-        phase_id BIGINT NOT NULL
-          REFERENCES phases(id),
-
+        phase_id BIGINT NOT NULL REFERENCES phases(id),
         type TEXT NOT NULL,
-
-        stars_amount NUMERIC(30,0) NOT NULL,
-
+        stars_amount NUMERIC NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (phase_id, type)
+      );
 
-        UNIQUE (
-          phase_id,
-          type
-        )
-      )
-    `);
-
-    await client.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id BIGSERIAL PRIMARY KEY,
-
         event_type TEXT NOT NULL,
-
         actor_telegram_id BIGINT,
-
-        phase_id BIGINT
-          REFERENCES phases(id),
-
+        phase_id BIGINT REFERENCES phases(id),
         payload JSONB,
-
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
+      );
     `);
 
-    const migrations = [
-      `
-      ALTER TABLE payments
-      ADD COLUMN IF NOT EXISTS
-      refund_attempts INTEGER NOT NULL DEFAULT 0
-      `,
+    const alters = [
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS ton_wallet_address TEXT`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS ton_wallet_verified_at TIMESTAMPTZ`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`,
 
-      `
-      ALTER TABLE payments
-      ADD COLUMN IF NOT EXISTS
-      refund_last_error TEXT
-      `,
+      `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'XTR'`,
+      `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ`,
 
-      `
-      ALTER TABLE payments
-      ADD COLUMN IF NOT EXISTS
-      last_refund_attempt_at TIMESTAMPTZ
-      `,
+      `ALTER TABLE payments ADD COLUMN IF NOT EXISTS provider_payment_charge_id TEXT`,
+      `ALTER TABLE payments ADD COLUMN IF NOT EXISTS raw_payment JSONB`,
+      `ALTER TABLE payments ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMPTZ`,
 
-      `
-      ALTER TABLE payouts
-      ADD COLUMN IF NOT EXISTS
-      prize_usd NUMERIC(20,6)
-      `,
+      `ALTER TABLE payment_reconciliations ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE payment_reconciliations ADD COLUMN IF NOT EXISTS last_error TEXT`,
 
-      `
-      ALTER TABLE payouts
-      ADD COLUMN IF NOT EXISTS
-      usdt_amount_micro BIGINT
-      `,
+      `ALTER TABLE free_entry_grants ADD COLUMN IF NOT EXISTS required_referrals INTEGER NOT NULL DEFAULT 2`,
+      `ALTER TABLE free_entry_grants ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'available'`,
+      `ALTER TABLE free_entry_grants ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ`,
 
-      `
-      ALTER TABLE payouts
-      ADD COLUMN IF NOT EXISTS
-      settlement_asset TEXT NOT NULL DEFAULT 'USDT_TON'
-      `,
+      `ALTER TABLE phases ADD COLUMN IF NOT EXISTS entry_count BIGINT NOT NULL DEFAULT 0`,
+      `ALTER TABLE phases ADD COLUMN IF NOT EXISTS paid_entry_count BIGINT NOT NULL DEFAULT 0`,
+      `ALTER TABLE phases ADD COLUMN IF NOT EXISTS free_entry_count BIGINT NOT NULL DEFAULT 0`,
+      `ALTER TABLE phases ADD COLUMN IF NOT EXISTS gross_usd NUMERIC(20,6) NOT NULL DEFAULT 0`,
+      `ALTER TABLE phases ADD COLUMN IF NOT EXISTS winner_pool_usd NUMERIC(20,6) NOT NULL DEFAULT 0`,
+      `ALTER TABLE phases ADD COLUMN IF NOT EXISTS charity_usd NUMERIC(20,6) NOT NULL DEFAULT 0`,
+      `ALTER TABLE phases ADD COLUMN IF NOT EXISTS operations_usd NUMERIC(20,6) NOT NULL DEFAULT 0`,
+      `ALTER TABLE phases ADD COLUMN IF NOT EXISTS draw_commit_hash TEXT`,
+      `ALTER TABLE phases ADD COLUMN IF NOT EXISTS draw_seed_secret TEXT`,
+      `ALTER TABLE phases ADD COLUMN IF NOT EXISTS draw_reveal TEXT`,
+      `ALTER TABLE phases ADD COLUMN IF NOT EXISTS finalized_at TIMESTAMPTZ`,
 
-      `
-      ALTER TABLE payouts
-      ADD COLUMN IF NOT EXISTS
-      settlement_reference TEXT
-      `,
+      `ALTER TABLE entries ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'paid'`,
 
-      `
-      ALTER TABLE payouts
-      ADD COLUMN IF NOT EXISTS
-      ton_wallet_address TEXT
-      `,
+      `ALTER TABLE winners ADD COLUMN IF NOT EXISTS prize_usd NUMERIC(20,6) NOT NULL DEFAULT 0`,
+      `ALTER TABLE winners ADD COLUMN IF NOT EXISTS prize_stars_equiv NUMERIC(20,6) NOT NULL DEFAULT 0`,
 
-      `
-      ALTER TABLE payouts
-      ADD COLUMN IF NOT EXISTS
-      ton_tx_hash TEXT
-      `,
-
-      `
-      ALTER TABLE payouts
-      ADD COLUMN IF NOT EXISTS
-      failure_reason TEXT
-      `,
-
-      `
-      ALTER TABLE payouts
-      ADD COLUMN IF NOT EXISTS
-      processing_at TIMESTAMPTZ
-      `,
-
-      `
-      ALTER TABLE payouts
-      ADD COLUMN IF NOT EXISTS
-      paid_at TIMESTAMPTZ
-      `
-    ];
-
-    for (
-      const ddl
-      of migrations
-    ) {
-      await client.query(
-        ddl
-      );
-    }
-
-    const indexes = [
-      `
-      CREATE INDEX IF NOT EXISTS
-      idx_entries_phase
-      ON entries(
-        phase_id
-      )
-      `,
-
-      `
-      CREATE INDEX IF NOT EXISTS
-      idx_payments_phase
-      ON payments(
-        phase_id
-      )
-      `,
-
-      `
-      CREATE INDEX IF NOT EXISTS
-      idx_payouts_status
-      ON payouts(
-        status
-      )
-      `,
-
-      `
-      CREATE INDEX IF NOT EXISTS
-      idx_referral_conversions
-      ON referral_conversions(
-        referrer_id,
-        phase_id
-      )
-      `,
-
-      `
-      CREATE INDEX IF NOT EXISTS
-      idx_ton_challenges
-      ON ton_proof_challenges(
-        telegram_user_id
-      )
-      `
+      `ALTER TABLE payouts ADD COLUMN IF NOT EXISTS usdt_amount_micro BIGINT NOT NULL DEFAULT 0`,
+      `ALTER TABLE payouts ADD COLUMN IF NOT EXISTS settlement_asset TEXT NOT NULL DEFAULT 'USDT_TON'`,
+      `ALTER TABLE payouts ADD COLUMN IF NOT EXISTS ton_wallet_address TEXT`,
+      `ALTER TABLE payouts ADD COLUMN IF NOT EXISTS ton_tx_hash TEXT`,
+      `ALTER TABLE payouts ADD COLUMN IF NOT EXISTS settlement_reference TEXT`,
+      `ALTER TABLE payouts ADD COLUMN IF NOT EXISTS failure_reason TEXT`,
+      `ALTER TABLE payouts ADD COLUMN IF NOT EXISTS processing_at TIMESTAMPTZ`,
+      `ALTER TABLE payouts ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ`,
     ];
 
     for (
       const sql
-      of indexes
+      of alters
     ) {
       await client.query(
         sql
       );
     }
 
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_entries_phase
+        ON entries(phase_id);
+
+      CREATE INDEX IF NOT EXISTS idx_entries_user
+        ON entries(telegram_user_id);
+
+      CREATE INDEX IF NOT EXISTS idx_payments_phase
+        ON payments(phase_id);
+
+      CREATE INDEX IF NOT EXISTS idx_payouts_status
+        ON payouts(status);
+
+      CREATE INDEX IF NOT EXISTS idx_refconv_referrer_phase
+        ON referral_conversions(referrer_id, phase_id);
+
+      CREATE INDEX IF NOT EXISTS idx_ton_challenge_user
+        ON ton_proof_challenges(telegram_user_id, expires_at);
+    `);
+
     await client.query(
-      'COMMIT'
+      "COMMIT"
     );
 
     console.log(
-      'Database initialized successfully.'
+      "Database initialized successfully."
     );
   } catch (
     error
   ) {
-    try {
-      await client.query(
-        'ROLLBACK'
-      );
-    } catch {}
+    await client.query(
+      "ROLLBACK"
+    );
 
     throw error;
   } finally {
@@ -1403,126 +1527,93 @@ async function initializeDatabase() {
   }
 }
 
-/* =========================================================
-   PHASES / USERS
-========================================================= */
-
-async function getCurrentPhase(
+async function audit(
   client,
-  create =
-    true
+  eventType,
+  actorTelegramId = null,
+  phaseId = null,
+  payload = null
 ) {
-  const phaseDate =
-    getMoscowDateString();
-
-  let result =
-    await client.query(
-      `
-      SELECT *
-      FROM phases
-      WHERE
-        phase_date =
-          $1
-      `,
-      [
-        phaseDate
-      ]
-    );
-
-  if (
-    result.rows.length
-  ) {
-    return result.rows[0];
-  }
-
-  if (!create) {
-    return null;
-  }
-
   await client.query(
     `
-    INSERT INTO phases (
-      phase_date,
-      status
-    )
-    VALUES (
-      $1,
-      'open'
-    )
-    ON CONFLICT (
-      phase_date
-    )
-    DO NOTHING
+      INSERT INTO audit_logs (
+        event_type,
+        actor_telegram_id,
+        phase_id,
+        payload
+      )
+      VALUES (
+        $1,
+        $2,
+        $3,
+        $4::jsonb
+      )
     `,
     [
-      phaseDate
+      eventType,
+      actorTelegramId,
+      phaseId,
+      safeJson(
+        payload
+      ),
     ]
   );
-
-  result =
-    await client.query(
-      `
-      SELECT *
-      FROM phases
-      WHERE
-        phase_date =
-          $1
-      `,
-      [
-        phaseDate
-      ]
-    );
-
-  return result.rows[0];
 }
+/* =========================================================
+   USER / PHASE HELPERS
+========================================================= */
 
-async function ensureUser(
+async function upsertUser(
   client,
   telegramUser
 ) {
+  const displayName =
+    displayNameFromTelegramUser(
+      telegramUser
+    );
+
   await client.query(
     `
-    INSERT INTO users (
-      telegram_id,
-      username,
-      first_name,
-      last_name,
-      language_code,
-      is_premium,
-      updated_at
-    )
-    VALUES (
-      $1,
-      $2,
-      $3,
-      $4,
-      $5,
-      $6,
-      NOW()
-    )
+      INSERT INTO users (
+        telegram_id,
+        username,
+        first_name,
+        last_name,
+        language_code,
+        is_premium,
+        display_name
+      )
+      VALUES (
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7
+      )
+      ON CONFLICT (telegram_id)
+      DO UPDATE SET
+        username =
+          EXCLUDED.username,
 
-    ON CONFLICT (
-      telegram_id
-    )
+        first_name =
+          EXCLUDED.first_name,
 
-    DO UPDATE SET
-      username =
-        EXCLUDED.username,
+        last_name =
+          EXCLUDED.last_name,
 
-      first_name =
-        EXCLUDED.first_name,
+        language_code =
+          EXCLUDED.language_code,
 
-      last_name =
-        EXCLUDED.last_name,
+        is_premium =
+          EXCLUDED.is_premium,
 
-      language_code =
-        EXCLUDED.language_code,
+        display_name =
+          EXCLUDED.display_name,
 
-      is_premium =
-        EXCLUDED.is_premium,
-
-      updated_at =
-        NOW()
+        updated_at =
+          NOW()
     `,
     [
       telegramUser.id,
@@ -1539,391 +1630,593 @@ async function ensureUser(
       telegramUser.language_code ||
         null,
 
-      Boolean(
-        telegramUser.is_premium
-      )
+      telegramUser.is_premium ??
+        null,
+
+      displayName,
     ]
   );
 }
 
-/* =========================================================
-   WINNER COUNT
-========================================================= */
-
-function getWinnerCountFromUsd(
-  poolUsd
+async function getOrCreateCurrentPhase(
+  client
 ) {
-  const usd =
-    Number(
-      poolUsd
+  const phaseDate =
+    getMoscowDateString();
+
+  let row =
+    (
+      await client.query(
+        `
+          SELECT *
+          FROM phases
+          WHERE phase_date = $1
+          FOR UPDATE
+        `,
+        [
+          phaseDate,
+        ]
+      )
+    ).rows[0];
+
+  if (row) {
+    return row;
+  }
+
+  const drawSeed =
+    crypto.randomBytes(
+      32
     );
 
-  if (
-    !Number.isFinite(
-      usd
-    ) ||
-    usd <
-      100
-  ) {
-    return 0;
-  }
+  const drawSeedText =
+    drawSeed.toString(
+      "base64url"
+    );
 
-  if (usd < 300) return 10;
-  if (usd < 600) return 20;
-  if (usd < 1200) return 30;
-  if (usd < 2000) return 40;
-  if (usd < 4000) return 50;
-  if (usd < 8000) return 80;
-  if (usd < 12000) return 100;
-  if (usd < 15000) return 120;
-  if (usd < 25000) return 185;
-  if (usd < 35000) return 250;
-  if (usd < 50000) return 350;
-  if (usd < 70000) return 550;
-  if (usd < 130000) return 1000;
-  if (usd < 170000) return 1300;
-  if (usd < 250000) return 2000;
-  if (usd < 400000) return 3000;
-  if (usd < 650000) return 50000;
-  if (usd < 1000000) return 10000;
-  if (usd < 2000000) return 30000;
-  if (usd < 4000000) return 50000;
-  if (usd < 10000000) return 100000;
+  const drawCommitHash =
+    sha256Hex(
+      drawSeed
+    );
 
-  return 100000;
+  row =
+    (
+      await client.query(
+        `
+          INSERT INTO phases (
+            phase_date,
+            status,
+            draw_commit_hash,
+            draw_seed_secret
+          )
+          VALUES (
+            $1,
+            'open',
+            $2,
+            $3
+          )
+          ON CONFLICT (phase_date)
+          DO UPDATE SET
+            phase_date =
+              EXCLUDED.phase_date
+          RETURNING *
+        `,
+        [
+          phaseDate,
+          drawCommitHash,
+          drawSeedText,
+        ]
+      )
+    ).rows[0];
+
+  return row;
 }
 
-function secureShuffle(
-  items
-) {
-  const copy =
-    [
-      ...items
-    ];
+async function getCurrentPhase() {
+  const client =
+    await pool.connect();
 
-  for (
-    let i =
-      copy.length -
-      1;
+  try {
+    await client.query(
+      "BEGIN"
+    );
 
-    i >
-      0;
-
-    i--
-  ) {
-    const j =
-      crypto.randomInt(
-        0,
-        i +
-          1
+    const phase =
+      await getOrCreateCurrentPhase(
+        client
       );
 
-    [
-      copy[i],
-      copy[j]
-    ] = [
-      copy[j],
-      copy[i]
-    ];
-  }
+    await client.query(
+      "COMMIT"
+    );
 
-  return copy;
+    return phase;
+  } catch (
+    error
+  ) {
+    await client.query(
+      "ROLLBACK"
+    );
+
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function refreshPhaseTotals(
+  client,
+  phaseId
+) {
+  const counts =
+    (
+      await client.query(
+        `
+          SELECT
+            COUNT(*)::bigint
+              AS entry_count,
+
+            COUNT(*) FILTER (
+              WHERE is_free = FALSE
+            )::bigint
+              AS paid_entry_count,
+
+            COUNT(*) FILTER (
+              WHERE is_free = TRUE
+            )::bigint
+              AS free_entry_count
+
+          FROM entries
+
+          WHERE phase_id = $1
+        `,
+        [
+          phaseId,
+        ]
+      )
+    ).rows[0];
+
+  const starsRow =
+    (
+      await client.query(
+        `
+          SELECT
+            COALESCE(
+              SUM(
+                stars_amount
+              ),
+              0
+            )::numeric
+              AS total_stars
+
+          FROM payments
+
+          WHERE phase_id = $1
+            AND status =
+              'succeeded'
+        `,
+        [
+          phaseId,
+        ]
+      )
+    ).rows[0];
+
+  const totalStars =
+    Number(
+      starsRow.total_stars ||
+        0
+    );
+
+  const grossUsd =
+    grossUsdFromStars(
+      totalStars
+    );
+
+  const winnerStars =
+    totalStars *
+    WINNER_SHARE;
+
+  const charityStars =
+    totalStars *
+    CHARITY_SHARE;
+
+  const operationsStars =
+    totalStars *
+    OPERATIONS_SHARE;
+
+  await client.query(
+    `
+      UPDATE phases
+
+      SET
+        total_stars = $2,
+
+        entry_count = $3,
+
+        paid_entry_count = $4,
+
+        free_entry_count = $5,
+
+        gross_usd = $6,
+
+        winner_pool_usd = $7,
+
+        charity_usd = $8,
+
+        operations_usd = $9,
+
+        winner_pool_stars = $10,
+
+        charity_stars = $11,
+
+        operations_stars = $12,
+
+        updated_at = NOW()
+
+      WHERE id = $1
+    `,
+    [
+      phaseId,
+
+      totalStars,
+
+      Number(
+        counts.entry_count ||
+          0
+      ),
+
+      Number(
+        counts.paid_entry_count ||
+          0
+      ),
+
+      Number(
+        counts.free_entry_count ||
+          0
+      ),
+
+      money6(
+        grossUsd
+      ),
+
+      money6(
+        grossUsd *
+          WINNER_SHARE
+      ),
+
+      money6(
+        grossUsd *
+          CHARITY_SHARE
+      ),
+
+      money6(
+        grossUsd *
+          OPERATIONS_SHARE
+      ),
+
+      money6(
+        winnerStars
+      ),
+
+      money6(
+        charityStars
+      ),
+
+      money6(
+        operationsStars
+      ),
+    ]
+  );
+
+  const legacyAllocations = [
+    [
+      "winners",
+      winnerStars,
+    ],
+
+    [
+      "charity",
+      charityStars,
+    ],
+
+    [
+      "operations",
+      operationsStars,
+    ],
+  ];
+
+  for (
+    const [
+      type,
+      amount,
+    ]
+    of legacyAllocations
+  ) {
+    await client.query(
+      `
+        INSERT INTO allocations (
+          phase_id,
+          type,
+          stars_amount
+        )
+        VALUES (
+          $1,
+          $2,
+          $3
+        )
+        ON CONFLICT (
+          phase_id,
+          type
+        )
+        DO UPDATE SET
+          stars_amount =
+            EXCLUDED.stars_amount
+      `,
+      [
+        phaseId,
+        type,
+        money6(
+          amount
+        ),
+      ]
+    );
+  }
 }
 
 /* =========================================================
-   REFERRAL
+   REFERRALS
 ========================================================= */
-
-function makeReferralCode(
-  userId,
-  phaseDate
-) {
-  return (
-    `ref_${userId}_` +
-    `${String(
-      phaseDate
-    ).replaceAll(
-      '-',
-      ''
-    )}_` +
-    crypto
-      .randomBytes(
-        8
-      )
-      .toString(
-        'hex'
-      )
-  );
-}
 
 async function getOrCreateReferralLink(
   client,
-  userId,
-  phase
+  telegramUserId,
+  phaseId
 ) {
-  const existing =
-    await client.query(
-      `
-      SELECT *
-      FROM referral_links
+  let row =
+    (
+      await client.query(
+        `
+          SELECT *
+          FROM referral_links
+          WHERE referrer_id = $1
+            AND phase_id = $2
+        `,
+        [
+          telegramUserId,
+          phaseId,
+        ]
+      )
+    ).rows[0];
 
-      WHERE
-        referrer_id =
-          $1
+  if (!row) {
+    const code =
+      `ref_${phaseId}_${randomToken(
+        9
+      )}`;
 
-        AND phase_id =
-          $2
-      `,
-      [
-        userId,
-        phase.id
-      ]
-    );
-
-  if (
-    existing.rows.length
-  ) {
-    return existing.rows[0];
+    row =
+      (
+        await client.query(
+          `
+            INSERT INTO referral_links (
+              referrer_id,
+              phase_id,
+              code
+            )
+            VALUES (
+              $1,
+              $2,
+              $3
+            )
+            ON CONFLICT (
+              referrer_id,
+              phase_id
+            )
+            DO UPDATE SET
+              referrer_id =
+                EXCLUDED.referrer_id
+            RETURNING *
+          `,
+          [
+            telegramUserId,
+            phaseId,
+            code,
+          ]
+        )
+      ).rows[0];
   }
 
-  const code =
-    makeReferralCode(
-      userId,
-      toDateOnlyString(
-        phase.phase_date
-      )
-    );
+  return {
+    code:
+      row.code,
 
-  const result =
-    await client.query(
-      `
-      INSERT INTO referral_links (
-        referrer_id,
+    link:
+      BOT_USERNAME
+        ? `https://t.me/${BOT_USERNAME}?startapp=${encodeURIComponent(
+            row.code
+          )}`
+        : null,
+  };
+}
+
+async function maybeRecordReferralConversion(
+  client,
+  refereeTelegramId,
+  phaseId,
+  paymentId
+) {
+  const attachment =
+    (
+      await client.query(
+        `
+          SELECT *
+          FROM referral_attachments
+          WHERE phase_id = $1
+            AND referred_user_id = $2
+          FOR UPDATE
+        `,
+        [
+          phaseId,
+          refereeTelegramId,
+        ]
+      )
+    ).rows[0];
+
+  if (!attachment) {
+    return;
+  }
+
+  await client.query(
+    `
+      INSERT INTO referral_conversions (
         phase_id,
-        code
+        referrer_id,
+        referred_user_id,
+        payment_id
       )
       VALUES (
         $1,
         $2,
-        $3
+        $3,
+        $4
       )
-
       ON CONFLICT (
-        referrer_id,
+        referred_user_id,
         phase_id
       )
+      DO NOTHING
+    `,
+    [
+      phaseId,
 
-      DO UPDATE SET
-        code =
-          referral_links.code
+      attachment.referrer_id,
 
-      RETURNING *
+      refereeTelegramId,
+
+      paymentId,
+    ]
+  );
+
+  const count =
+    Number(
+      (
+        await client.query(
+          `
+            SELECT
+              COUNT(*)::int
+                AS count
+
+            FROM referral_conversions
+
+            WHERE phase_id = $1
+              AND referrer_id = $2
+          `,
+          [
+            phaseId,
+            attachment.referrer_id,
+          ]
+        )
+      ).rows[0]
+        ?.count ||
+        0
+    );
+
+  if (
+    count >=
+    2
+  ) {
+    await client.query(
+      `
+        INSERT INTO free_entry_grants (
+          phase_id,
+          telegram_user_id,
+          reason,
+          required_referrals,
+          status
+        )
+        VALUES (
+          $1,
+          $2,
+          'two_referrals',
+          2,
+          'available'
+        )
+        ON CONFLICT (
+          telegram_user_id,
+          phase_id
+        )
+        DO NOTHING
       `,
       [
-        userId,
-        phase.id,
-        code
+        phaseId,
+
+        attachment.referrer_id,
       ]
     );
-
-  return result.rows[0];
-}
-
-/* =========================================================
-   TELEGRAM STARS INVOICE
-========================================================= */
-
-async function createEntryInvoice(
-  userId,
-  phaseId
-) {
-  const nonce =
-    crypto
-      .randomBytes(
-        16
-      )
-      .toString(
-        'hex'
-      );
-
-  const payload =
-    `pz_entry:${phaseId}:${userId}:${nonce}`;
-
-  const link =
-    await telegramApi(
-      'createInvoiceLink',
-      {
-        title:
-          'Project Z Entry',
-
-        description:
-          'Daily Project Z entry',
-
-        payload,
-
-        currency:
-          'XTR',
-
-        prices: [
-          {
-            label:
-              'Project Z Entry',
-
-            amount:
-              ENTRY_STARS
-          }
-        ]
-      }
-    );
-
-  return {
-    link,
-    payload
-  };
+  }
 }
 
 /* =========================================================
    TON PROOF
 ========================================================= */
 
-function createTonProofNonce() {
-  return crypto
-    .randomBytes(
+function walletCodeDescriptors() {
+  const zeroKey =
+    Buffer.alloc(
       32
-    )
-    .toString(
-      'hex'
-    );
-}
-
-function normalizeTonAddress(
-  value
-) {
-  return (
-    typeof value ===
-      'string' &&
-    value.trim()
-      ? value.trim()
-      : null
-  );
-}
-
-function buildTonProofDigest(
-  address,
-  proof
-) {
-  const workchain =
-    Buffer.alloc(
-      4
     );
 
-  workchain.writeInt32BE(
-    address.workChain,
-    0
-  );
+  const build = (
+    version,
+    wallet,
+    parseData
+  ) => ({
+    version,
 
-  const domainBytes =
-    Buffer.from(
-      proof.domain.value,
-      'utf8'
-    );
+    codeHash:
+      wallet.init.code
+        .hash()
+        .toString(
+          "hex"
+        ),
 
-  if (
-    proof.domain
-      .lengthBytes !==
-    domainBytes.length
-  ) {
-    throw new Error(
-      'TON Proof domain length mismatch'
-    );
-  }
+    parseData,
+  });
 
-  const domainLength =
-    Buffer.alloc(
-      4
-    );
+  return [
+    build(
+      "V1R1",
 
-  domainLength.writeUInt32LE(
-    domainBytes.length,
-    0
-  );
+      WalletContractV1R1.create({
+        workchain:
+          0,
 
-  const timestamp =
-    Buffer.alloc(
-      8
-    );
+        publicKey:
+          zeroKey,
+      }),
 
-  timestamp.writeBigUInt64LE(
-    BigInt(
-      proof.timestamp
+      (
+        slice
+      ) => {
+        slice.loadUint(
+          32
+        );
+
+        return slice.loadBuffer(
+          32
+        );
+      }
     ),
-    0
-  );
 
-  const message =
-    Buffer.concat([
-      Buffer.from(
-        'ton-proof-item-v2/',
-        'utf8'
-      ),
+    build(
+      "V1R2",
 
-      workchain,
+      WalletContractV1R2.create({
+        workchain:
+          0,
 
-      Buffer.from(
-        address.hash
-      ),
-
-      domainLength,
-
-      domainBytes,
-
-      timestamp,
-
-      Buffer.from(
-        proof.payload,
-        'utf8'
-      )
-    ]);
-
-  return sha256(
-    Buffer.concat([
-      Buffer.from([
-        0xff,
-        0xff
-      ]),
-
-      Buffer.from(
-        'ton-connect',
-        'utf8'
-      ),
-
-      sha256(
-        message
-      )
-    ])
-  );
-}
-
-async function extractTonWalletPublicKey(
-  stateInit
-) {
-  const ton =
-    await import(
-      '@ton/ton'
-    );
-
-  if (
-    !stateInit
-      ?.code ||
-    !stateInit
-      ?.data
-  ) {
-    return null;
-  }
-
-  const definitions = [
-    [
-      'WalletContractV1R1',
+        publicKey:
+          zeroKey,
+      }),
 
       (
         slice
@@ -1936,26 +2229,18 @@ async function extractTonWalletPublicKey(
           32
         );
       }
-    ],
+    ),
 
-    [
-      'WalletContractV1R2',
+    build(
+      "V1R3",
 
-      (
-        slice
-      ) => {
-        slice.loadUint(
-          32
-        );
+      WalletContractV1R3.create({
+        workchain:
+          0,
 
-        return slice.loadBuffer(
-          32
-        );
-      }
-    ],
-
-    [
-      'WalletContractV1R3',
+        publicKey:
+          zeroKey,
+      }),
 
       (
         slice
@@ -1968,26 +2253,18 @@ async function extractTonWalletPublicKey(
           32
         );
       }
-    ],
+    ),
 
-    [
-      'WalletContractV2R1',
+    build(
+      "V2R1",
 
-      (
-        slice
-      ) => {
-        slice.loadUint(
-          32
-        );
+      WalletContractV2R1.create({
+        workchain:
+          0,
 
-        return slice.loadBuffer(
-          32
-        );
-      }
-    ],
-
-    [
-      'WalletContractV2R2',
+        publicKey:
+          zeroKey,
+      }),
 
       (
         slice
@@ -2000,10 +2277,42 @@ async function extractTonWalletPublicKey(
           32
         );
       }
-    ],
+    ),
 
-    [
-      'WalletContractV3R1',
+    build(
+      "V2R2",
+
+      WalletContractV2R2.create({
+        workchain:
+          0,
+
+        publicKey:
+          zeroKey,
+      }),
+
+      (
+        slice
+      ) => {
+        slice.loadUint(
+          32
+        );
+
+        return slice.loadBuffer(
+          32
+        );
+      }
+    ),
+
+    build(
+      "V3R1",
+
+      WalletContractV3R1.create({
+        workchain:
+          0,
+
+        publicKey:
+          zeroKey,
+      }),
 
       (
         slice
@@ -2020,30 +2329,18 @@ async function extractTonWalletPublicKey(
           32
         );
       }
-    ],
+    ),
 
-    [
-      'WalletContractV3R2',
+    build(
+      "V3R2",
 
-      (
-        slice
-      ) => {
-        slice.loadUint(
-          32
-        );
+      WalletContractV3R2.create({
+        workchain:
+          0,
 
-        slice.loadUint(
-          32
-        );
-
-        return slice.loadBuffer(
-          32
-        );
-      }
-    ],
-
-    [
-      'WalletContractV4',
+        publicKey:
+          zeroKey,
+      }),
 
       (
         slice
@@ -2060,10 +2357,54 @@ async function extractTonWalletPublicKey(
           32
         );
       }
-    ],
+    ),
 
-    [
-      'WalletContractV5R1',
+    build(
+      "V4R2",
+
+      WalletContractV4.create({
+        workchain:
+          0,
+
+        publicKey:
+          zeroKey,
+
+        walletId:
+          0x29a9a317,
+      }),
+
+      (
+        slice
+      ) => {
+        slice.loadUint(
+          32
+        );
+
+        slice.loadUint(
+          32
+        );
+
+        return slice.loadBuffer(
+          32
+        );
+      }
+    ),
+
+    build(
+      "V5R1",
+
+      WalletContractV5R1.create({
+        workchain:
+          0,
+
+        publicKey:
+          zeroKey,
+
+        walletId: {
+          networkGlobalId:
+            -239,
+        },
+      }),
 
       (
         slice
@@ -2082,4316 +2423,640 @@ async function extractTonWalletPublicKey(
           32
         );
       }
-    ]
+    ),
   ];
+}
 
-  for (
-    const [
-      name,
-      loader
-    ]
-    of definitions
+let walletDescriptorsCache =
+  null;
+
+function extractPublicKeyFromStateInit(
+  stateInit
+) {
+  if (
+    !stateInit
+      ?.code ||
+    !stateInit
+      ?.data
   ) {
-    const Contract =
-      ton[name];
-
-    if (
-      !Contract
-        ?.create
-    ) {
-      continue;
-    }
-
-    try {
-      const instance =
-        Contract.create({
-          workchain:
-            0,
-
-          publicKey:
-            Buffer.alloc(
-              32
-            )
-        });
-
-      if (
-        instance.init
-          ?.code
-          ?.equals(
-            stateInit.code
-          )
-      ) {
-        const key =
-          loader(
-            stateInit
-              .data
-              .beginParse()
-          );
-
-        if (
-          Buffer.isBuffer(
-            key
-          ) &&
-          key.length ===
-            32
-        ) {
-          return key;
-        }
-      }
-    } catch {}
+    return null;
   }
 
-  return null;
+  if (
+    !walletDescriptorsCache
+  ) {
+    walletDescriptorsCache =
+      walletCodeDescriptors();
+  }
+
+  const codeHash =
+    stateInit.code
+      .hash()
+      .toString(
+        "hex"
+      );
+
+  const descriptor =
+    walletDescriptorsCache.find(
+      (
+        item
+      ) =>
+        item.codeHash ===
+        codeHash
+    );
+
+  if (!descriptor) {
+    return null;
+  }
+
+  try {
+    const slice =
+      stateInit.data.beginParse();
+
+    const publicKey =
+      descriptor.parseData(
+        slice
+      );
+
+    if (
+      !Buffer.isBuffer(
+        publicKey
+      ) ||
+      publicKey.length !==
+        32
+    ) {
+      return null;
+    }
+
+    return {
+      publicKey,
+
+      version:
+        descriptor.version,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function buildTonProofDigest(
+  address,
+  proof
+) {
+  const domain =
+    Buffer.from(
+      String(
+        proof.domain.value
+      ),
+      "utf8"
+    );
+
+  if (
+    domain.length !==
+    Number(
+      proof.domain.lengthBytes
+    )
+  ) {
+    throw new Error(
+      "TON Proof domain length mismatch"
+    );
+  }
+
+  const wc =
+    Buffer.alloc(
+      4
+    );
+
+  wc.writeInt32BE(
+    address.workChain,
+    0
+  );
+
+  const domainLen =
+    Buffer.alloc(
+      4
+    );
+
+  domainLen.writeUInt32LE(
+    domain.length,
+    0
+  );
+
+  const timestamp =
+    Buffer.alloc(
+      8
+    );
+
+  timestamp.writeBigUInt64LE(
+    BigInt(
+      proof.timestamp
+    ),
+    0
+  );
+
+  const message =
+    Buffer.concat([
+      Buffer.from(
+        "ton-proof-item-v2/",
+        "utf8"
+      ),
+
+      wc,
+
+      address.hash,
+
+      domainLen,
+
+      domain,
+
+      timestamp,
+
+      Buffer.from(
+        String(
+          proof.payload
+        ),
+        "utf8"
+      ),
+    ]);
+
+  const messageHash =
+    sha256Buffer(
+      message
+    );
+
+  return sha256Buffer(
+    Buffer.concat([
+      Buffer.from([
+        0xff,
+        0xff,
+      ]),
+
+      Buffer.from(
+        "ton-connect",
+        "utf8"
+      ),
+
+      messageHash,
+    ])
+  );
+}
+
+async function verifyTonProof({
+  telegramUserId,
+  proof,
+  address,
+  walletStateInit,
+  network,
+}) {
+  if (
+    !proof ||
+    !address ||
+    !walletStateInit
+  ) {
+    throw new Error(
+      "TON Proof payload is incomplete"
+    );
+  }
+
+  if (
+    String(
+      network
+    ) !==
+    TON_NETWORK
+  ) {
+    throw new Error(
+      "Wrong TON network"
+    );
+  }
+
+  if (
+    !proof.domain ||
+    String(
+      proof.domain.value
+    ) !==
+      TON_PROOF_DOMAIN
+  ) {
+    throw new Error(
+      "TON Proof domain mismatch"
+    );
+  }
+
+  const timestamp =
+    Number(
+      proof.timestamp
+    );
+
+  const now =
+    Math.floor(
+      Date.now() /
+        1000
+    );
+
+  if (
+    !Number.isSafeInteger(
+      timestamp
+    ) ||
+    Math.abs(
+      now -
+        timestamp
+    ) >
+      TON_PROOF_TTL_SECONDS
+  ) {
+    throw new Error(
+      "TON Proof expired"
+    );
+  }
+
+  const challenge =
+    (
+      await pool.query(
+        `
+          SELECT *
+          FROM ton_proof_challenges
+          WHERE telegram_user_id = $1
+            AND nonce = $2
+            AND used_at IS NULL
+            AND expires_at > NOW()
+          ORDER BY created_at DESC
+          LIMIT 1
+        `,
+        [
+          telegramUserId,
+
+          String(
+            proof.payload
+          ),
+        ]
+      )
+    ).rows[0];
+
+  if (!challenge) {
+    throw new Error(
+      "TON Proof challenge is invalid or expired"
+    );
+  }
+
+  const parsedAddress =
+    Address.parse(
+      String(
+        address
+      )
+    );
+
+  const stateInitCell =
+    Cell.fromBase64(
+      String(
+        walletStateInit
+      )
+    );
+
+  const stateInit =
+    loadStateInit(
+      stateInitCell.beginParse()
+    );
+
+  const derivedAddress =
+    contractAddress(
+      parsedAddress.workChain,
+      stateInit
+    );
+
+  if (
+    !derivedAddress.equals(
+      parsedAddress
+    )
+  ) {
+    throw new Error(
+      "walletStateInit does not match wallet address"
+    );
+  }
+
+  const extracted =
+    extractPublicKeyFromStateInit(
+      stateInit
+    );
+
+  if (
+    !extracted
+      ?.publicKey
+  ) {
+    throw new Error(
+      "Unsupported wallet contract for local TON Proof verification"
+    );
+  }
+
+  const signature =
+    Buffer.from(
+      String(
+        proof.signature
+      ),
+      "base64"
+    );
+
+  if (
+    signature.length !==
+    64
+  ) {
+    throw new Error(
+      "Invalid TON Proof signature"
+    );
+  }
+
+  const digest =
+    buildTonProofDigest(
+      parsedAddress,
+      proof
+    );
+
+  const ok =
+    nacl.sign.detached.verify(
+      new Uint8Array(
+        digest
+      ),
+
+      new Uint8Array(
+        signature
+      ),
+
+      new Uint8Array(
+        extracted.publicKey
+      )
+    );
+
+  if (!ok) {
+    throw new Error(
+      "TON Proof signature verification failed"
+    );
+  }
+
+  return {
+    address:
+      parsedAddress.toString({
+        bounceable:
+          false,
+
+        testOnly:
+          TON_NETWORK !==
+          "-239",
+      }),
+
+    version:
+      extracted.version,
+
+    challengeId:
+      challenge.id,
+  };
 }
 
 /* =========================================================
-   TON NONCE
+   ADMIN AUTH
 ========================================================= */
 
-app.post(
-  '/api/tonconnect/nonce',
-
-  async (
-    req,
-    res
-  ) => {
-    const user =
-      verifyInitData(
-        getInitData(
-          req
-        )
-      );
-
-    if (!user) {
-      return res
-        .status(
-          401
-        )
-        .json({
-          ok:
-            false,
-
-          error:
-            'Invalid Telegram initData'
-        });
-    }
-
-    if (
-      !TON_PROOF_DOMAIN
-    ) {
-      return res
-        .status(
-          503
-        )
-        .json({
-          ok:
-            false,
-
-          error:
-            'TON proof domain is not configured'
-        });
-    }
-
-    const client =
-      await pool.connect();
-
-    try {
-      await client.query(
-        'BEGIN'
-      );
-
-      await ensureUser(
-        client,
-        user
-      );
-
-      await client.query(
-        `
-        SELECT
-          telegram_id
-
-        FROM
-          users
-
-        WHERE
-          telegram_id =
-            $1
-
-        FOR UPDATE
-        `,
-        [
-          user.id
-        ]
-      );
-
-      const nonce =
-        createTonProofNonce();
-
-      const expiresAt =
-        new Date(
-          Date.now() +
-            10 *
-              60 *
-              1000
-        );
-
-      await client.query(
-        `
-        UPDATE
-          ton_proof_challenges
-
-        SET
-          used_at =
-            NOW()
-
-        WHERE
-          telegram_user_id =
-            $1
-
-          AND used_at
-            IS NULL
-        `,
-        [
-          user.id
-        ]
-      );
-
-      await client.query(
-        `
-        INSERT INTO ton_proof_challenges (
-          telegram_user_id,
-          nonce,
-          domain,
-          expires_at
-        )
-        VALUES (
-          $1,
-          $2,
-          $3,
-          $4
-        )
-        `,
-        [
-          user.id,
-          nonce,
-          TON_PROOF_DOMAIN,
-          expiresAt
-        ]
-      );
-
-      await audit(
-        client,
-
-        'ton_proof_challenge_created',
-
-        user.id,
-
-        null,
-
-        {
-          domain:
-            TON_PROOF_DOMAIN,
-
-          expiresAt:
-            expiresAt.toISOString()
-        }
-      );
-
-      await client.query(
-        'COMMIT'
-      );
-
-      return res.json({
-        ok:
-          true,
-
-        nonce,
-
-        domain:
-          TON_PROOF_DOMAIN,
-
-        expiresAt:
-          expiresAt.toISOString()
-      });
-    } catch (
-      error
-    ) {
-      try {
-        await client.query(
-          'ROLLBACK'
-        );
-      } catch {}
-
-      console.error(
-        'TON nonce error:',
-        error
-      );
-
-      return res
-        .status(
-          500
-        )
-        .json({
-          ok:
-            false,
-
-          error:
-            'Failed to create TON Proof challenge'
-        });
-    } finally {
-      client.release();
-    }
-  }
-);
-
-/* =========================================================
-   TON VERIFY
-========================================================= */
-
-app.post(
-  '/api/tonconnect/verify',
-
-  async (
-    req,
-    res
-  ) => {
-    const user =
-      verifyInitData(
-        getInitData(
-          req
-        )
-      );
-
-    if (!user) {
-      return res
-        .status(
-          401
-        )
-        .json({
-          ok:
-            false,
-
-          error:
-            'Invalid Telegram initData'
-        });
-    }
-
-    const proof =
-      req.body
-        ?.proof;
-
-    const addressString =
-      normalizeTonAddress(
-        req.body
-          ?.address
-      );
-
-    const walletStateInit =
-      req.body
-        ?.walletStateInit;
-
-    const network =
-      String(
-        req.body
-          ?.network ??
-          ''
-      );
-
-    if (
-      !proof ||
-      !addressString ||
-      !walletStateInit
-    ) {
-      return res
-        .status(
-          400
-        )
-        .json({
-          ok:
-            false,
-
-          error:
-            'Missing TON Proof data'
-        });
-    }
-
-    if (
-      network !==
-      '-239'
-    ) {
-      return res
-        .status(
-          400
-        )
-        .json({
-          ok:
-            false,
-
-          error:
-            'Only TON mainnet wallets are accepted'
-        });
-    }
-
-    if (
-      !proof.domain ||
-      typeof proof
-        .domain
-        .value !==
-        'string' ||
-      !Number.isSafeInteger(
-        proof
-          .domain
-          .lengthBytes
-      ) ||
-      proof
-        .domain
-        .lengthBytes <
-        0 ||
-      typeof proof
-        .payload !==
-        'string' ||
-      typeof proof
-        .signature !==
-        'string'
-    ) {
-      return res
-        .status(
-          400
-        )
-        .json({
-          ok:
-            false,
-
-          error:
-            'Invalid TON Proof structure'
-        });
-    }
-
-    let proofTimestamp;
-
-    try {
-      proofTimestamp =
-        BigInt(
-          proof.timestamp
-        );
-    } catch {
-      return res
-        .status(
-          400
-        )
-        .json({
-          ok:
-            false,
-
-          error:
-            'Invalid TON Proof timestamp'
-        });
-    }
-
-    const now =
-      BigInt(
-        Math.floor(
-          Date.now() /
-            1000
-        )
-      );
-
-    if (
-      proofTimestamp >
-        now +
-          60n ||
-      now -
-        proofTimestamp >
-        15n *
-          60n
-    ) {
-      return res
-        .status(
-          401
-        )
-        .json({
-          ok:
-            false,
-
-          error:
-            'TON Proof expired'
-        });
-    }
-
-    if (
-      !TON_PROOF_DOMAIN ||
-      proof.domain.value !==
-        TON_PROOF_DOMAIN
-    ) {
-      return res
-        .status(
-          401
-        )
-        .json({
-          ok:
-            false,
-
-          error:
-            'TON Proof domain mismatch'
-        });
-    }
-
-    const client =
-      await pool.connect();
-
-    try {
-      await client.query(
-        'BEGIN'
-      );
-
-      await ensureUser(
-        client,
-        user
-      );
-
-      const challengeResult =
-        await client.query(
-          `
-          SELECT
-            id,
-            nonce,
-            domain,
-            expires_at,
-            used_at
-
-          FROM
-            ton_proof_challenges
-
-          WHERE
-            telegram_user_id =
-              $1
-
-            AND nonce =
-              $2
-
-            AND domain =
-              $3
-
-          ORDER BY
-            id DESC
-
-          LIMIT 1
-
-          FOR UPDATE
-          `,
-          [
-            user.id,
-            proof.payload,
-            TON_PROOF_DOMAIN
-          ]
-        );
-
-      if (
-        !challengeResult
-          .rows
-          .length
-      ) {
-        await client.query(
-          'ROLLBACK'
-        );
-
-        return res
-          .status(
-            401
-          )
-          .json({
-            ok:
-              false,
-
-            error:
-              'Invalid or unknown TON Proof nonce'
-          });
-      }
-
-      const challenge =
-        challengeResult
-          .rows[0];
-
-      if (
-        challenge.used_at ||
-        new Date(
-          challenge.expires_at
-        ).getTime() <=
-          Date.now()
-      ) {
-        await client.query(
-          'ROLLBACK'
-        );
-
-        return res
-          .status(
-            401
-          )
-          .json({
-            ok:
-              false,
-
-            error:
-              'TON Proof nonce expired or already used'
-          });
-      }
-
-      const {
-        Address,
-        Cell,
-        contractAddress,
-        loadStateInit
-      } =
-        await import(
-          '@ton/ton'
-        );
-
-      const wantedAddress =
-        Address.parse(
-          addressString
-        );
-
-      if (
-        wantedAddress
-          .workChain !==
-        0
-      ) {
-        await client.query(
-          'ROLLBACK'
-        );
-
-        return res
-          .status(
-            400
-          )
-          .json({
-            ok:
-              false,
-
-            error:
-              'Only basechain TON wallets are accepted'
-          });
-      }
-
-      const stateInitCell =
-        Cell.fromBase64(
-          walletStateInit
-        );
-
-      const stateInit =
-        loadStateInit(
-          stateInitCell
-            .beginParse()
-        );
-
-      const derivedAddress =
-        contractAddress(
-          wantedAddress
-            .workChain,
-
-          stateInit
-        );
-
-      if (
-        !derivedAddress
-          .equals(
-            wantedAddress
-          )
-      ) {
-        await client.query(
-          'ROLLBACK'
-        );
-
-        return res
-          .status(
-            401
-          )
-          .json({
-            ok:
-              false,
-
-            error:
-              'walletStateInit does not match wallet address'
-          });
-      }
-
-      const publicKey =
-        await extractTonWalletPublicKey(
-          stateInit
-        );
-
-      if (!publicKey) {
-        await client.query(
-          'ROLLBACK'
-        );
-
-        return res
-          .status(
-            400
-          )
-          .json({
-            ok:
-              false,
-
-            error:
-              'Unsupported TON wallet contract'
-          });
-      }
-
-      const digest =
-        buildTonProofDigest(
-          wantedAddress,
-
-          {
-            ...proof,
-
-            timestamp:
-              proofTimestamp.toString()
-          }
-        );
-
-      const signature =
-        Buffer.from(
-          proof.signature,
-          'base64'
-        );
-
-      if (
-        signature.length !==
-        64
-      ) {
-        await client.query(
-          'ROLLBACK'
-        );
-
-        return res
-          .status(
-            401
-          )
-          .json({
-            ok:
-              false,
-
-            error:
-              'Invalid TON Proof signature'
-          });
-      }
-
-      const spki =
-        Buffer.concat([
-          Buffer.from(
-            '302a300506032b6570032100',
-            'hex'
-          ),
-
-          publicKey
-        ]);
-
-      const valid =
-        crypto.verify(
-          null,
-
-          digest,
-
-          {
-            key:
-              spki,
-
-            format:
-              'der',
-
-            type:
-              'spki'
-          },
-
-          signature
-        );
-
-      if (!valid) {
-        await client.query(
-          'ROLLBACK'
-        );
-
-        return res
-          .status(
-            401
-          )
-          .json({
-            ok:
-              false,
-
-            error:
-              'TON Proof signature verification failed'
-          });
-      }
-
-      const consumed =
-        await client.query(
-          `
-          UPDATE
-            ton_proof_challenges
-
-          SET
-            used_at =
-              NOW()
-
-          WHERE
-            id =
-              $1
-
-            AND used_at
-              IS NULL
-
-            AND expires_at >
-              NOW()
-
-          RETURNING
-            id
-          `,
-          [
-            challenge.id
-          ]
-        );
-
-      if (
-        !consumed
-          .rows
-          .length
-      ) {
-        await client.query(
-          'ROLLBACK'
-        );
-
-        return res
-          .status(
-            409
-          )
-          .json({
-            ok:
-              false,
-
-            error:
-              'TON Proof challenge already consumed'
-          });
-      }
-
-      const canonicalAddress =
-        wantedAddress.toString();
-
-      await client.query(
-        `
-        UPDATE
-          users
-
-        SET
-          ton_wallet_address =
-            $1,
-
-          ton_wallet_public_key =
-            $2,
-
-          ton_wallet_chain =
-            $3,
-
-          ton_wallet_verified_at =
-            NOW(),
-
-          updated_at =
-            NOW()
-
-        WHERE
-          telegram_id =
-            $4
-        `,
-        [
-          canonicalAddress,
-
-          publicKey.toString(
-            'hex'
-          ),
-
-          -239,
-
-          user.id
-        ]
-      );
-
-      await client.query(
-        `
-        UPDATE
-          payouts
-
-        SET
-          ton_wallet_address =
-            $1,
-
-          status =
-            CASE
-
-              WHEN status =
-                'waiting_wallet'
-
-              THEN
-                'pending'
-
-              ELSE
-                status
-
-            END
-
-        WHERE
-          telegram_user_id =
-            $2
-
-          AND (
-            ton_wallet_address
-              IS NULL
-
-            OR
-            ton_wallet_address =
-              ''
-          )
-        `,
-        [
-          canonicalAddress,
-          user.id
-        ]
-      );
-
-      await audit(
-        client,
-
-        'ton_wallet_verified',
-
-        user.id,
-
-        null,
-
-        {
-          walletAddress:
-            canonicalAddress,
-
-          network:
-            -239
-        }
-      );
-
-      await client.query(
-        'COMMIT'
-      );
-
-      return res.json({
-        ok:
-          true,
-
-        verified:
-          true,
-
-        walletAddress:
-          canonicalAddress,
-
-        network:
-          -239
-      });
-    } catch (
-      error
-    ) {
-      try {
-        await client.query(
-          'ROLLBACK'
-        );
-      } catch {}
-
-      console.error(
-        'TON Proof verification error:',
-        error
-      );
-
-      return res
-        .status(
-          500
-        )
-        .json({
-          ok:
-            false,
-
-          error:
-            'TON Proof verification failed'
-        });
-    } finally {
-      client.release();
-    }
-  }
-);
-
-/* =========================================================
-   HEALTH
-========================================================= */
-
-app.get(
-  '/health',
-
-  async (
-    _req,
-    res
-  ) => {
-    let databaseOk =
-      false;
-
-    try {
-      await pool.query(
-        'SELECT 1'
-      );
-
-      databaseOk =
-        true;
-    } catch {}
-
+function requireAdmin(
+  req,
+  res,
+  next
+) {
+  const provided =
+    String(
+      req.headers[
+        "x-admin-secret"
+      ] ||
+        ""
+    );
+
+  if (
+    !ADMIN_SECRET ||
+    !timingSafeEqualText(
+      provided,
+      ADMIN_SECRET
+    )
+  ) {
     return res
       .status(
-        databaseOk
-          ? 200
-          : 503
+        401
       )
       .json({
-        ok:
-          databaseOk,
-
-        project:
-          'Project Z',
-
-        paymentsReady,
-
-        database:
-          databaseOk,
-
-        missingEnv,
-
-        frontendOrigin:
-          FRONTEND_ORIGIN,
-
-        tonProofDomain:
-          TON_PROOF_DOMAIN,
-
-        treasuryConfigured:
-          treasuryState
-            .configured,
-
-        treasuryVerified:
-          treasuryState
-            .verified,
-
-        treasuryWalletVersion:
-          treasuryState
-            .version,
-
-        treasuryAddress:
-          treasuryState
-            .address,
-
-        settlementAsset:
-          'USDT_TON',
-
-        automaticSettlementEnabled:
-          false,
-
-        usdtJettonMaster:
-          USDT_JETTON_MASTER,
-
-        entryStars:
-          ENTRY_STARS,
-
-        entryUsdDisplay:
-          ENTRY_USD_DISPLAY,
-
-        starUsdRate:
-          STAR_USD_RATE,
-
-        moscowDate:
-          getMoscowDateString(),
-
-        time:
-          new Date()
-            .toISOString()
+        error:
+          "Unauthorized.",
       });
   }
-);
 
-app.get(
-  '/',
-
-  (
-    _req,
-    res
-  ) => {
-    return res.json({
-      name:
-        'Project Z',
-
-      status:
-        'running',
-
-      paymentsReady,
-
-      treasuryVerified:
-        treasuryState
-          .verified,
-
-      automaticSettlementEnabled:
-        false,
-
-      moscowDate:
-        getMoscowDateString()
-    });
-  }
-);
-
-/* =========================================================
-   STATS
-========================================================= */
-
-app.get(
-  '/api/stats',
-
-  async (
-    _req,
-    res
-  ) => {
-    const client =
-      await pool.connect();
-
-    try {
-      const phase =
-        await getCurrentPhase(
-          client
-        );
-
-      const totalStars =
-        Number(
-          phase.total_stars ||
-            0
-        );
-
-      const poolStars =
-        Math.floor(
-          totalStars *
-            0.70
-        );
-
-      const poolUsd =
-        poolStars *
-        STAR_USD_RATE;
-
-      const countResult =
-        await client.query(
-          `
-          SELECT
-            COUNT(*)::int
-              AS count
-
-          FROM
-            entries
-
-          WHERE
-            phase_id =
-              $1
-          `,
-          [
-            phase.id
-          ]
-        );
-
-      const participantResult =
-        await client.query(
-          `
-          SELECT
-            u.username,
-
-            u.first_name,
-
-            u.last_name,
-
-            e.created_at,
-
-            e.is_first_payer,
-
-            e.is_free
-
-          FROM
-            entries e
-
-          JOIN
-            users u
-
-          ON
-            u.telegram_id =
-              e.telegram_user_id
-
-          WHERE
-            e.phase_id =
-              $1
-
-          ORDER BY
-            e.id DESC
-
-          LIMIT
-            20
-          `,
-          [
-            phase.id
-          ]
-        );
-
-      return res.json({
-        phaseDate:
-          toDateOnlyString(
-            phase.phase_date
-          ),
-
-        status:
-          phase.status,
-
-        totalStars,
-
-        poolStars,
-
-        poolUsd:
-          Number(
-            poolUsd.toFixed(
-              4
-            )
-          ),
-
-        participants:
-          Number(
-            countResult
-              .rows[0]
-              .count
-          ),
-
-        participantList:
-          participantResult
-            .rows
-            .map(
-              (
-                row
-              ) => {
-                const fullName =
-                  [
-                    row.first_name,
-
-                    row.last_name
-                  ]
-                    .filter(
-                      Boolean
-                    )
-                    .join(
-                      ' '
-                    )
-                    .trim();
-
-                return {
-                  username:
-                    row.username ||
-                    null,
-
-                  displayName:
-                    row.username ||
-                    fullName ||
-                    'Participant',
-
-                  createdAt:
-                    row.created_at,
-
-                  isFirstPayer:
-                    Boolean(
-                      row.is_first_payer
-                    ),
-
-                  isFree:
-                    Boolean(
-                      row.is_free
-                    )
-                };
-              }
-            ),
-
-        winnerCount:
-          getWinnerCountFromUsd(
-            poolUsd
-          ),
-
-        firstPayerGuaranteed:
-          true,
-
-        entryStars:
-          ENTRY_STARS,
-
-        entryUsdDisplay:
-          ENTRY_USD_DISPLAY,
-
-        paymentsEnabled:
-          paymentsReady
-      });
-    } catch (
-      error
-    ) {
-      console.error(
-        'stats error:',
-        error
-      );
-
-      return res
-        .status(
-          500
-        )
-        .json({
-          error:
-            'db_error'
-        });
-    } finally {
-      client.release();
-    }
-  }
-);
-
-/* =========================================================
-   USER STATUS
-========================================================= */
-
-app.post(
-  '/api/user-status',
-
-  async (
-    req,
-    res
-  ) => {
-    const user =
-      verifyInitData(
-        getInitData(
-          req
-        )
-      );
-
-    if (!user) {
-      return res
-        .status(
-          401
-        )
-        .json({
-          error:
-            'invalid_init_data'
-        });
-    }
-
-    const client =
-      await pool.connect();
-
-    try {
-      await client.query(
-        'BEGIN'
-      );
-
-      await ensureUser(
-        client,
-        user
-      );
-
-      const phase =
-        await getCurrentPhase(
-          client
-        );
-
-      const entry =
-        await client.query(
-          `
-          SELECT *
-          FROM entries
-
-          WHERE
-            telegram_user_id =
-              $1
-
-            AND phase_id =
-              $2
-          `,
-          [
-            user.id,
-            phase.id
-          ]
-        );
-
-      const conversions =
-        await client.query(
-          `
-          SELECT
-            COUNT(*)::int
-              AS count
-
-          FROM
-            referral_conversions
-
-          WHERE
-            referrer_id =
-              $1
-
-            AND phase_id =
-              $2
-          `,
-          [
-            user.id,
-            phase.id
-          ]
-        );
-
-      const grant =
-        await client.query(
-          `
-          SELECT
-            id
-
-          FROM
-            free_entry_grants
-
-          WHERE
-            telegram_user_id =
-              $1
-
-            AND phase_id =
-              $2
-          `,
-          [
-            user.id,
-            phase.id
-          ]
-        );
-
-      const wallet =
-        await client.query(
-          `
-          SELECT
-            ton_wallet_address,
-
-            ton_wallet_verified_at
-
-          FROM
-            users
-
-          WHERE
-            telegram_id =
-              $1
-          `,
-          [
-            user.id
-          ]
-        );
-
-      const referralLink =
-        await getOrCreateReferralLink(
-          client,
-          user.id,
-          phase
-        );
-
-      await client.query(
-        'COMMIT'
-      );
-
-      const referralCount =
-        Number(
-          conversions
-            .rows[0]
-            .count
-        );
-
-      return res.json({
-        phaseDate:
-          toDateOnlyString(
-            phase.phase_date
-          ),
-
-        hasEntry:
-          entry.rows.length >
-          0,
-
-        isFree:
-          Boolean(
-            entry.rows[0]
-              ?.is_free
-          ),
-
-        isFirstPayer:
-          Boolean(
-            entry.rows[0]
-              ?.is_first_payer
-          ),
-
-        referralProgress:
-          Math.min(
-            referralCount,
-            2
-          ),
-
-        qualifyingReferrals:
-          referralCount,
-
-        freeUnlocked:
-          grant.rows.length >
-            0 ||
-          referralCount >=
-            2,
-
-        referralCode:
-          referralLink.code,
-
-        referralLink:
-          BOT_USERNAME
-            ? `https://t.me/${BOT_USERNAME}?startapp=${encodeURIComponent(
-                referralLink.code
-              )}`
-            : null,
-
-        walletVerified:
-          Boolean(
-            wallet.rows[0]
-              ?.ton_wallet_verified_at
-          ),
-
-        walletAddress:
-          wallet.rows[0]
-            ?.ton_wallet_address ||
-          null
-      });
-    } catch (
-      error
-    ) {
-      try {
-        await client.query(
-          'ROLLBACK'
-        );
-      } catch {}
-
-      console.error(
-        'user-status error:',
-        error
-      );
-
-      return res
-        .status(
-          500
-        )
-        .json({
-          error:
-            'db_error'
-        });
-    } finally {
-      client.release();
-    }
-  }
-);
-
-/* =========================================================
-   ATTACH REFERRAL
-========================================================= */
-
-app.post(
-  '/api/attach-referral',
-
-  async (
-    req,
-    res
-  ) => {
-    const user =
-      verifyInitData(
-        getInitData(
-          req
-        )
-      );
-
-    if (!user) {
-      return res
-        .status(
-          401
-        )
-        .json({
-          error:
-            'invalid_init_data'
-        });
-    }
-
-    const code =
-      String(
-        req.body
-          ?.code ||
-          ''
-      ).trim();
-
-    if (
-      !/^ref_\d+_\d{8}_[a-f0-9]{16}$/.test(
-        code
-      )
-    ) {
-      return res
-        .status(
-          400
-        )
-        .json({
-          error:
-            'bad_referral_code'
-        });
-    }
-
-    const client =
-      await pool.connect();
-
-    try {
-      await client.query(
-        'BEGIN'
-      );
-
-      await ensureUser(
-        client,
-        user
-      );
-
-      const phase =
-        await getCurrentPhase(
-          client
-        );
-
-      const link =
-        await client.query(
-          `
-          SELECT
-            rl.*
-
-          FROM
-            referral_links rl
-
-          JOIN
-            phases p
-
-          ON
-            p.id =
-              rl.phase_id
-
-          WHERE
-            rl.code =
-              $1
-
-            AND rl.phase_id =
-              $2
-
-            AND p.phase_date =
-              $3
-
-            AND p.status =
-              'open'
-
-          FOR UPDATE OF
-            rl
-          `,
-          [
-            code,
-            phase.id,
-            getMoscowDateString()
-          ]
-        );
-
-      if (
-        !link.rows.length
-      ) {
-        await client.query(
-          'ROLLBACK'
-        );
-
-        return res
-          .status(
-            400
-          )
-          .json({
-            error:
-              'expired_or_invalid_referral'
-          });
-      }
-
-      const referral =
-        link.rows[0];
-
-      if (
-        Number(
-          referral.referrer_id
-        ) ===
-        Number(
-          user.id
-        )
-      ) {
-        await client.query(
-          'ROLLBACK'
-        );
-
-        return res
-          .status(
-            400
-          )
-          .json({
-            error:
-              'self_referral'
-          });
-      }
-
-      await client.query(
-        `
-        INSERT INTO referral_attachments (
-          referred_user_id,
-          referrer_id,
-          phase_id,
-          referral_link_id
-        )
-
-        VALUES (
-          $1,
-          $2,
-          $3,
-          $4
-        )
-
-        ON CONFLICT (
-          referred_user_id,
-          phase_id
-        )
-
-        DO NOTHING
-        `,
-        [
-          user.id,
-          referral.referrer_id,
-          phase.id,
-          referral.id
-        ]
-      );
-
-      await audit(
-        client,
-
-        'referral_attached',
-
-        user.id,
-
-        phase.id,
-
-        {
-          referrerId:
-            referral.referrer_id,
-
-          code
-        }
-      );
-
-      await client.query(
-        'COMMIT'
-      );
-
-      return res.json({
-        ok:
-          true,
-
-        phaseDate:
-          toDateOnlyString(
-            phase.phase_date
-          )
-      });
-    } catch (
-      error
-    ) {
-      try {
-        await client.query(
-          'ROLLBACK'
-        );
-      } catch {}
-
-      console.error(
-        'referral attach error:',
-        error
-      );
-
-      return res
-        .status(
-          500
-        )
-        .json({
-          error:
-            'referral_attach_failed'
-        });
-    } finally {
-      client.release();
-    }
-  }
-);
-
-/* =========================================================
-   CREATE ENTRY INVOICE
-========================================================= */
-
-app.post(
-  '/api/create-entry-invoice',
-
-  async (
-    req,
-    res
-  ) => {
-    if (
-      !paymentsReady
-    ) {
-      return res
-        .status(
-          503
-        )
-        .json({
-          error:
-            'payments_disabled'
-        });
-    }
-
-    const user =
-      verifyInitData(
-        getInitData(
-          req
-        )
-      );
-
-    if (!user) {
-      return res
-        .status(
-          401
-        )
-        .json({
-          error:
-            'invalid_init_data'
-        });
-    }
-
-    const client =
-      await pool.connect();
-
-    try {
-      await client.query(
-        'BEGIN'
-      );
-
-      await ensureUser(
-        client,
-        user
-      );
-
-      const phase =
-        await getCurrentPhase(
-          client
-        );
-
-      if (
-        phase.status !==
-          'open' ||
-        toDateOnlyString(
-          phase.phase_date
-        ) !==
-          getMoscowDateString()
-      ) {
-        await client.query(
-          'ROLLBACK'
-        );
-
-        return res
-          .status(
-            400
-          )
-          .json({
-            error:
-              'phase_closed'
-          });
-      }
-
-      const existing =
-        await client.query(
-          `
-          SELECT
-            id
-
-          FROM
-            entries
-
-          WHERE
-            telegram_user_id =
-              $1
-
-            AND phase_id =
-              $2
-
-          FOR UPDATE
-          `,
-          [
-            user.id,
-            phase.id
-          ]
-        );
-
-      if (
-        existing.rows.length
-      ) {
-        await client.query(
-          'ROLLBACK'
-        );
-
-        return res
-          .status(
-            400
-          )
-          .json({
-            error:
-              'already_entered'
-          });
-      }
-
-      const referralCount =
-        await client.query(
-          `
-          SELECT
-            COUNT(*)::int
-              AS count
-
-          FROM
-            referral_conversions
-
-          WHERE
-            referrer_id =
-              $1
-
-            AND phase_id =
-              $2
-          `,
-          [
-            user.id,
-            phase.id
-          ]
-        );
-
-      if (
-        Number(
-          referralCount
-            .rows[0]
-            .count
-        ) >=
-        2
-      ) {
-        await client.query(
-          `
-          INSERT INTO free_entry_grants (
-            telegram_user_id,
-            phase_id,
-            reason
-          )
-
-          VALUES (
-            $1,
-            $2,
-            'two_successful_referrals'
-          )
-
-          ON CONFLICT (
-            telegram_user_id,
-            phase_id
-          )
-
-          DO NOTHING
-          `,
-          [
-            user.id,
-            phase.id
-          ]
-        );
-
-        await client.query(
-          'COMMIT'
-        );
-
-        return res.json({
-          freeEntry:
-            true,
-
-          reason:
-            'two_successful_referrals'
-        });
-      }
-
-      const invoice =
-        await createEntryInvoice(
-          user.id,
-          phase.id
-        );
-
-      const expiresAt =
-        new Date(
-          Date.now() +
-            15 *
-              60 *
-              1000
-        );
-
-      await client.query(
-        `
-        INSERT INTO invoices (
-          invoice_token,
-          telegram_user_id,
-          phase_id,
-          stars_amount,
-          payload,
-          status,
-          expires_at
-        )
-
-        VALUES (
-          $1,
-          $2,
-          $3,
-          $4,
-          $5,
-          'created',
-          $6
-        )
-        `,
-        [
-          invoice.link,
-          user.id,
-          phase.id,
-          ENTRY_STARS,
-          invoice.payload,
-          expiresAt
-        ]
-      );
-
-      await audit(
-        client,
-
-        'invoice_created',
-
-        user.id,
-
-        phase.id,
-
-        {
-          payload:
-            invoice.payload,
-
-          stars:
-            ENTRY_STARS
-        }
-      );
-
-      await client.query(
-        'COMMIT'
-      );
-
-      return res.json({
-        freeEntry:
-          false,
-
-        invoiceLink:
-          invoice.link,
-
-        entryStars:
-          ENTRY_STARS,
-
-        entryUsdDisplay:
-          ENTRY_USD_DISPLAY
-      });
-    } catch (
-      error
-    ) {
-      try {
-        await client.query(
-          'ROLLBACK'
-        );
-      } catch {}
-
-      console.error(
-        'invoice error:',
-        error
-      );
-
-      return res
-        .status(
-          500
-        )
-        .json({
-          error:
-            'invoice_failed'
-        });
-    } finally {
-      client.release();
-    }
-  }
-);
-
-/* =========================================================
-   CLAIM FREE ENTRY
-========================================================= */
-
-app.post(
-  '/api/claim-free-entry',
-
-  async (
-    req,
-    res
-  ) => {
-    const user =
-      verifyInitData(
-        getInitData(
-          req
-        )
-      );
-
-    if (!user) {
-      return res
-        .status(
-          401
-        )
-        .json({
-          error:
-            'invalid_init_data'
-        });
-    }
-
-    const client =
-      await pool.connect();
-
-    try {
-      await client.query(
-        'BEGIN'
-      );
-
-      await ensureUser(
-        client,
-        user
-      );
-
-      const phase =
-        await getCurrentPhase(
-          client
-        );
-
-      if (
-        phase.status !==
-          'open' ||
-        toDateOnlyString(
-          phase.phase_date
-        ) !==
-          getMoscowDateString()
-      ) {
-        await client.query(
-          'ROLLBACK'
-        );
-
-        return res
-          .status(
-            400
-          )
-          .json({
-            error:
-              'phase_closed'
-          });
-      }
-
-      const existing =
-        await client.query(
-          `
-          SELECT *
-          FROM entries
-
-          WHERE
-            telegram_user_id =
-              $1
-
-            AND phase_id =
-              $2
-
-          FOR UPDATE
-          `,
-          [
-            user.id,
-            phase.id
-          ]
-        );
-
-      if (
-        existing.rows.length
-      ) {
-        await client.query(
-          'COMMIT'
-        );
-
-        return res.json({
-          ok:
-            true,
-
-          alreadyEntered:
-            true,
-
-          isFree:
-            Boolean(
-              existing.rows[0]
-                .is_free
-            )
-        });
-      }
-
-      const conversions =
-        await client.query(
-          `
-          SELECT
-            COUNT(*)::int
-              AS count
-
-          FROM
-            referral_conversions
-
-          WHERE
-            referrer_id =
-              $1
-
-            AND phase_id =
-              $2
-          `,
-          [
-            user.id,
-            phase.id
-          ]
-        );
-
-      if (
-        Number(
-          conversions
-            .rows[0]
-            .count
-        ) <
-        2
-      ) {
-        await client.query(
-          'ROLLBACK'
-        );
-
-        return res
-          .status(
-            403
-          )
-          .json({
-            error:
-              'two_successful_referrals_required'
-          });
-      }
-
-      await client.query(
-        `
-        INSERT INTO free_entry_grants (
-          telegram_user_id,
-          phase_id,
-          reason
-        )
-
-        VALUES (
-          $1,
-          $2,
-          'two_successful_referrals'
-        )
-
-        ON CONFLICT (
-          telegram_user_id,
-          phase_id
-        )
-
-        DO NOTHING
-        `,
-        [
-          user.id,
-          phase.id
-        ]
-      );
-
-      const entry =
-        await client.query(
-          `
-          INSERT INTO entries (
-            telegram_user_id,
-            phase_id,
-            payment_id,
-            is_free,
-            is_first_payer
-          )
-
-          VALUES (
-            $1,
-            $2,
-            NULL,
-            TRUE,
-            FALSE
-          )
-
-          ON CONFLICT (
-            telegram_user_id,
-            phase_id
-          )
-
-          DO NOTHING
-
-          RETURNING
-            id
-          `,
-          [
-            user.id,
-            phase.id
-          ]
-        );
-
-      await audit(
-        client,
-
-        'free_entry_created',
-
-        user.id,
-
-        phase.id,
-
-        {
-          entryId:
-            entry.rows[0]
-              ?.id ||
-            null
-        }
-      );
-
-      await client.query(
-        'COMMIT'
-      );
-
-      return res.json({
-        ok:
-          true,
-
-        freeEntry:
-          true
-      });
-    } catch (
-      error
-    ) {
-      try {
-        await client.query(
-          'ROLLBACK'
-        );
-      } catch {}
-
-      console.error(
-        'free entry error:',
-        error
-      );
-
-      return res
-        .status(
-          500
-        )
-        .json({
-          error:
-            'free_entry_failed'
-        });
-    } finally {
-      client.release();
-    }
-  }
-);
-
-/* =========================================================
-   REFUNDS
-========================================================= */
-
-async function tryRefundPayment({
-  paymentId =
-    null,
-
-  userId,
-
-  chargeId,
-
-  reconciliationId =
-    null
-}) {
-  try {
-    await telegramApi(
-      'refundStarPayment',
-
-      {
-        user_id:
-          userId,
-
-        telegram_payment_charge_id:
-          chargeId
-      }
-    );
-
-    if (
-      paymentId
-    ) {
-      await pool.query(
-        `
-        UPDATE payments
-
-        SET
-          status =
-            'refunded',
-
-          refund_attempts =
-            refund_attempts +
-            1,
-
-          last_refund_attempt_at =
-            NOW(),
-
-          refund_last_error =
-            NULL
-
-        WHERE
-          id =
-            $1
-        `,
-        [
-          paymentId
-        ]
-      );
-    }
-
-    if (
-      reconciliationId
-    ) {
-      await pool.query(
-        `
-        UPDATE payment_reconciliations
-
-        SET
-          status =
-            'refunded',
-
-          updated_at =
-            NOW()
-
-        WHERE
-          id =
-            $1
-        `,
-        [
-          reconciliationId
-        ]
-      );
-    }
-
-    return true;
-  } catch (
-    error
-  ) {
-    if (
-      paymentId
-    ) {
-      await pool.query(
-        `
-        UPDATE payments
-
-        SET
-          status =
-            'refund_failed',
-
-          refund_attempts =
-            refund_attempts +
-            1,
-
-          last_refund_attempt_at =
-            NOW(),
-
-          refund_last_error =
-            $2
-
-        WHERE
-          id =
-            $1
-        `,
-        [
-          paymentId,
-          error.message
-        ]
-      );
-    }
-
-    if (
-      reconciliationId
-    ) {
-      await pool.query(
-        `
-        UPDATE payment_reconciliations
-
-        SET
-          status =
-            'refund_failed',
-
-          updated_at =
-            NOW()
-
-        WHERE
-          id =
-            $1
-        `,
-        [
-          reconciliationId
-        ]
-      );
-    }
-
-    console.error(
-      'refundStarPayment failed:',
-      error.message
-    );
-
-    return false;
-  }
+  return next();
 }
-
-async function retryFailedRefunds() {
-  const result =
-    await pool.query(
-      `
-      SELECT
-        id,
-        telegram_payment_charge_id,
-        telegram_user_id
-
-      FROM
-        payments
-
-      WHERE
-        status IN (
-          'refund_pending',
-          'refund_failed'
-        )
-
-        AND refund_attempts <
-          5
-
-        AND (
-          last_refund_attempt_at
-            IS NULL
-
-          OR
-          last_refund_attempt_at <
-            NOW() -
-            INTERVAL '5 minutes'
-        )
-
-      ORDER BY
-        id
-
-      LIMIT
-        20
-      `
-    );
-
-  for (
-    const payment
-    of result.rows
-  ) {
-    await tryRefundPayment({
-      paymentId:
-        payment.id,
-
-      userId:
-        Number(
-          payment.telegram_user_id
-        ),
-
-      chargeId:
-        payment.telegram_payment_charge_id
-    });
-  }
-}
-
 /* =========================================================
-   TELEGRAM WEBHOOK
+   PAYMENT CREATION
 ========================================================= */
 
-app.post(
-  '/telegram/webhook',
-
-  async (
-    req,
-    res
-  ) => {
-    const secret =
-      req.headers[
-        'x-telegram-bot-api-secret-token'
-      ];
-
-    if (
-      !WEBHOOK_SECRET ||
-      !timingSafeStringEqual(
-        String(
-          secret ||
-            ''
-        ),
-
-        WEBHOOK_SECRET
-      )
-    ) {
-      return res
-        .status(
-          403
-        )
-        .json({
-          error:
-            'forbidden'
-        });
-    }
-
-    const update =
-      req.body;
-
-    if (!update) {
-      return res.sendStatus(
-        200
-      );
-    }
-
-    /* PRE CHECKOUT */
-
-    if (
-      update
-        .pre_checkout_query
-    ) {
-      const q =
-        update.pre_checkout_query;
-
-      try {
-        if (
-          !paymentsReady ||
-          q.currency !==
-            'XTR'
-        ) {
-          await telegramApi(
-            'answerPreCheckoutQuery',
-
-            {
-              pre_checkout_query_id:
-                q.id,
-
-              ok:
-                false,
-
-              error_message:
-                'Invalid or disabled payment.'
-            }
-          );
-
-          return res.sendStatus(
-            200
-          );
-        }
-
-        const invoice =
-          await pool.query(
-            `
-            SELECT
-              i.*,
-
-              p.phase_date,
-
-              p.status
-                AS phase_status
-
-            FROM
-              invoices i
-
-            JOIN
-              phases p
-
-            ON
-              p.id =
-                i.phase_id
-
-            WHERE
-              i.payload =
-                $1
-
-              AND i.status =
-                'created'
-
-              AND i.expires_at >
-                NOW()
-            `,
-            [
-              q.invoice_payload
-            ]
-          );
-
-        const inv =
-          invoice.rows[0];
-
-        const valid =
-          Boolean(
-            inv
-          ) &&
-          Number(
-            inv.stars_amount
-          ) ===
-            Number(
-              q.total_amount
-            ) &&
-          Number(
-            inv.telegram_user_id
-          ) ===
-            Number(
-              q.from.id
-            ) &&
-          inv.phase_status ===
-            'open' &&
-          toDateOnlyString(
-            inv.phase_date
-          ) ===
-            getMoscowDateString();
-
-        await telegramApi(
-          'answerPreCheckoutQuery',
-
-          {
-            pre_checkout_query_id:
-              q.id,
-
-            ok:
-              valid,
-
-            ...(
-              valid
-                ? {}
-                : {
-                    error_message:
-                      'Invoice expired or invalid for today.'
-                  }
-            )
-          }
-        );
-
-        return res.sendStatus(
-          200
-        );
-      } catch (
-        error
-      ) {
-        console.error(
-          'pre_checkout error:',
-          error
-        );
-
-        try {
-          await telegramApi(
-            'answerPreCheckoutQuery',
-
-            {
-              pre_checkout_query_id:
-                q.id,
-
-              ok:
-                false,
-
-              error_message:
-                'Temporary payment error.'
-            }
-          );
-        } catch {}
-
-        return res.sendStatus(
-          200
-        );
-      }
-    }
-
-    /* SUCCESSFUL PAYMENT */
-
-    if (
-      update.message
-        ?.successful_payment
-    ) {
-      const payment =
-        update.message
-          .successful_payment;
-
-      const from =
-        update.message
-          .from;
-
-      if (
-        !from?.id
-      ) {
-        return res.sendStatus(
-          200
-        );
-      }
-
-      const chargeId =
-        String(
-          payment.telegram_payment_charge_id ||
-            ''
-        );
-
-      const payload =
-        String(
-          payment.invoice_payload ||
-            ''
-        );
-
-      if (
-        !chargeId ||
-        !payload
-      ) {
-        return res.sendStatus(
-          200
-        );
-      }
-
-      const client =
-        await pool.connect();
-
-      let refundJob =
-        null;
-
-      try {
-        await client.query(
-          'BEGIN'
-        );
-
-        const duplicate =
-          await client.query(
-            `
-            SELECT
-              id
-
-            FROM
-              payments
-
-            WHERE
-              telegram_payment_charge_id =
-                $1
-            `,
-            [
-              chargeId
-            ]
-          );
-
-        if (
-          duplicate.rows.length
-        ) {
-          await client.query(
-            'COMMIT'
-          );
-
-          return res.sendStatus(
-            200
-          );
-        }
-
-        const invoiceResult =
-          await client.query(
-            `
-            SELECT *
-            FROM invoices
-
-            WHERE
-              payload =
-                $1
-
-            FOR UPDATE
-            `,
-            [
-              payload
-            ]
-          );
-
-        const inv =
-          invoiceResult.rows[0];
-
-        if (!inv) {
-          const reconciliation =
-            await client.query(
-              `
-              INSERT INTO payment_reconciliations (
-                telegram_payment_charge_id,
-                telegram_user_id,
-                invoice_payload,
-                currency,
-                stars_amount,
-                reason,
-                status,
-                raw_payload
-              )
-
-              VALUES (
-                $1,
-                $2,
-                $3,
-                $4,
-                $5,
-                'unknown_invoice',
-                'refund_pending',
-                $6
-              )
-
-              ON CONFLICT (
-                telegram_payment_charge_id
-              )
-
-              DO UPDATE SET
-                updated_at =
-                  NOW()
-
-              RETURNING
-                id
-              `,
-              [
-                chargeId,
-
-                from.id,
-
-                payload,
-
-                payment.currency,
-
-                payment.total_amount,
-
-                safeJson(
-                  payment
-                )
-              ]
-            );
-
-          await client.query(
-            'COMMIT'
-          );
-
-          refundJob = {
-            reconciliationId:
-              reconciliation
-                .rows[0]
-                .id,
-
-            userId:
-              from.id,
-
-            chargeId
-          };
-        } else {
-          const phaseResult =
-            await client.query(
-              `
-              SELECT *
-              FROM phases
-
-              WHERE
-                id =
-                  $1
-
-              FOR UPDATE
-              `,
-              [
-                inv.phase_id
-              ]
-            );
-
-          const phase =
-            phaseResult.rows[0];
-
-          if (!phase) {
-            await client.query(
-              'ROLLBACK'
-            );
-
-            return res.sendStatus(
-              200
-            );
-          }
-
-          await ensureUser(
-            client,
-            from
-          );
-
-          const amountMatches =
-            payment.currency ===
-              'XTR' &&
-            Number(
-              inv.stars_amount
-            ) ===
-              Number(
-                payment.total_amount
-              );
-
-          const currentOpen =
-            phase.status ===
-              'open' &&
-            toDateOnlyString(
-              phase.phase_date
-            ) ===
-              getMoscowDateString();
-
-          const initialStatus =
-            amountMatches &&
-            currentOpen
-              ? 'succeeded'
-              : 'refund_pending';
-
-          const paymentResult =
-            await client.query(
-              `
-              INSERT INTO payments (
-                telegram_payment_charge_id,
-                telegram_user_id,
-                phase_id,
-                stars_amount,
-                currency,
-                invoice_payload,
-                status
-              )
-
-              VALUES (
-                $1,
-                $2,
-                $3,
-                $4,
-                $5,
-                $6,
-                $7
-              )
-
-              RETURNING
-                id
-              `,
-              [
-                chargeId,
-
-                from.id,
-
-                phase.id,
-
-                payment.total_amount,
-
-                payment.currency,
-
-                payload,
-
-                initialStatus
-              ]
-            );
-
-          const paymentId =
-            paymentResult
-              .rows[0]
-              .id;
-
-          if (
-            !amountMatches ||
-            !currentOpen
-          ) {
-            await client.query(
-              `
-              UPDATE invoices
-
-              SET
-                status =
-                  $1
-
-              WHERE
-                id =
-                  $2
-              `,
-              [
-                amountMatches
-                  ? 'paid_after_phase_close'
-                  : 'paid_invalid_amount',
-
-                inv.id
-              ]
-            );
-
-            await audit(
-              client,
-
-              amountMatches
-                ? 'payment_received_after_phase_close'
-                : 'payment_amount_mismatch',
-
-              from.id,
-
-              phase.id,
-
-              {
-                chargeId,
-
-                expected:
-                  Number(
-                    inv.stars_amount
-                  ),
-
-                received:
-                  Number(
-                    payment.total_amount
-                  ),
-
-                currency:
-                  payment.currency
-              }
-            );
-
-            await client.query(
-              'COMMIT'
-            );
-
-            refundJob = {
-              paymentId,
-
-              userId:
-                from.id,
-
-              chargeId
-            };
-          } else {
-            const existingEntry =
-              await client.query(
-                `
-                SELECT
-                  id
-
-                FROM
-                  entries
-
-                WHERE
-                  telegram_user_id =
-                    $1
-
-                  AND phase_id =
-                    $2
-
-                FOR UPDATE
-                `,
-                [
-                  from.id,
-                  phase.id
-                ]
-              );
-
-            if (
-              existingEntry
-                .rows
-                .length
-            ) {
-              await client.query(
-                `
-                UPDATE payments
-
-                SET
-                  status =
-                    'refund_pending'
-
-                WHERE
-                  id =
-                    $1
-                `,
-                [
-                  paymentId
-                ]
-              );
-
-              await client.query(
-                `
-                UPDATE invoices
-
-                SET
-                  status =
-                    'paid_duplicate_entry'
-
-                WHERE
-                  id =
-                    $1
-                `,
-                [
-                  inv.id
-                ]
-              );
-
-              await audit(
-                client,
-
-                'duplicate_paid_entry',
-
-                from.id,
-
-                phase.id,
-
-                {
-                  chargeId
-                }
-              );
-
-              await client.query(
-                'COMMIT'
-              );
-
-              refundJob = {
-                paymentId,
-
-                userId:
-                  from.id,
-
-                chargeId
-              };
-            } else {
-              const isFirstPayer =
-                !phase.first_verified_entry_id;
-
-              const entryResult =
-                await client.query(
-                  `
-                  INSERT INTO entries (
-                    telegram_user_id,
-                    phase_id,
-                    payment_id,
-                    is_free,
-                    is_first_payer
-                  )
-
-                  VALUES (
-                    $1,
-                    $2,
-                    $3,
-                    FALSE,
-                    $4
-                  )
-
-                  RETURNING
-                    id
-                  `,
-                  [
-                    from.id,
-
-                    phase.id,
-
-                    paymentId,
-
-                    isFirstPayer
-                  ]
-                );
-
-              const entryId =
-                entryResult
-                  .rows[0]
-                  .id;
-
-              await client.query(
-                `
-                UPDATE phases
-
-                SET
-                  total_stars =
-                    total_stars +
-                    $1,
-
-                  first_verified_entry_id =
-                    CASE
-
-                      WHEN
-                        first_verified_entry_id
-                          IS NULL
-
-                      THEN
-                        $2
-
-                      ELSE
-                        first_verified_entry_id
-
-                    END,
-
-                  updated_at =
-                    NOW()
-
-                WHERE
-                  id =
-                    $3
-                `,
-                [
-                  payment.total_amount,
-
-                  entryId,
-
-                  phase.id
-                ]
-              );
-
-              await client.query(
-                `
-                UPDATE invoices
-
-                SET
-                  status =
-                    'paid'
-
-                WHERE
-                  id =
-                    $1
-                `,
-                [
-                  inv.id
-                ]
-              );
-
-              const attachment =
-                await client.query(
-                  `
-                  SELECT *
-
-                  FROM
-                    referral_attachments
-
-                  WHERE
-                    referred_user_id =
-                      $1
-
-                    AND phase_id =
-                      $2
-
-                  FOR UPDATE
-                  `,
-                  [
-                    from.id,
-
-                    phase.id
-                  ]
-                );
-
-              if (
-                attachment
-                  .rows
-                  .length
-              ) {
-                const referrerId =
-                  attachment
-                    .rows[0]
-                    .referrer_id;
-
-                if (
-                  Number(
-                    referrerId
-                  ) !==
-                  Number(
-                    from.id
-                  )
-                ) {
-                  await client.query(
-                    `
-                    INSERT INTO referral_conversions (
-                      referred_user_id,
-                      referrer_id,
-                      phase_id,
-                      payment_id
-                    )
-
-                    VALUES (
-                      $1,
-                      $2,
-                      $3,
-                      $4
-                    )
-
-                    ON CONFLICT (
-                      referred_user_id,
-                      phase_id
-                    )
-
-                    DO NOTHING
-                    `,
-                    [
-                      from.id,
-
-                      referrerId,
-
-                      phase.id,
-
-                      paymentId
-                    ]
-                  );
-
-                  const count =
-                    await client.query(
-                      `
-                      SELECT
-                        COUNT(*)::int
-                          AS count
-
-                      FROM
-                        referral_conversions
-
-                      WHERE
-                        referrer_id =
-                          $1
-
-                        AND phase_id =
-                          $2
-                      `,
-                      [
-                        referrerId,
-
-                        phase.id
-                      ]
-                    );
-
-                  if (
-                    Number(
-                      count
-                        .rows[0]
-                        .count
-                    ) >=
-                    2
-                  ) {
-                    await client.query(
-                      `
-                      INSERT INTO free_entry_grants (
-                        telegram_user_id,
-                        phase_id,
-                        reason
-                      )
-
-                      VALUES (
-                        $1,
-                        $2,
-                        'two_successful_referrals'
-                      )
-
-                      ON CONFLICT (
-                        telegram_user_id,
-                        phase_id
-                      )
-
-                      DO NOTHING
-                      `,
-                      [
-                        referrerId,
-
-                        phase.id
-                      ]
-                    );
-                  }
-                }
-              }
-
-              await audit(
-                client,
-
-                'payment_succeeded',
-
-                from.id,
-
-                phase.id,
-
-                {
-                  chargeId,
-
-                  entryId,
-
-                  stars:
-                    Number(
-                      payment.total_amount
-                    ),
-
-                  firstPayer:
-                    isFirstPayer
-                }
-              );
-
-              await client.query(
-                'COMMIT'
-              );
-            }
-          }
-        }
-      } catch (
-        error
-      ) {
-        try {
-          await client.query(
-            'ROLLBACK'
-          );
-        } catch {}
-
-        console.error(
-          'successful payment error:',
-          error
-        );
-
-        return res.sendStatus(
-          200
-        );
-      } finally {
-        client.release();
-      }
-
-      if (
-        refundJob
-      ) {
-        tryRefundPayment(
-          refundJob
-        ).catch(
-          console.error
-        );
-      }
-
-      return res.sendStatus(
-        200
-      );
-    }
-
-    return res.sendStatus(
-      200
-    );
-  }
-);
-
-/* =========================================================
-   FINALIZATION
-========================================================= */
-
-async function finalizePhaseByDate(
-  phaseDate,
-  force =
-    false,
-  actorTelegramId =
-    null
+async function createEntryInvoice(
+  telegramUser
 ) {
+  if (
+    !PAYMENTS_ENABLED
+  ) {
+    throw new Error(
+      "Payments are currently disabled"
+    );
+  }
+
   const client =
     await pool.connect();
 
   try {
     await client.query(
-      'BEGIN'
+      "BEGIN"
     );
 
-    const phaseResult =
-      await client.query(
-        `
-        SELECT *
-        FROM phases
-
-        WHERE
-          phase_date =
-            $1
-
-        FOR UPDATE
-        `,
-        [
-          phaseDate
-        ]
-      );
-
-    if (
-      !phaseResult
-        .rows
-        .length
-    ) {
-      await client.query(
-        'ROLLBACK'
-      );
-
-      return {
-        status:
-          404,
-
-        body: {
-          error:
-            'phase_not_found'
-        }
-      };
-    }
+    await upsertUser(
+      client,
+      telegramUser
+    );
 
     const phase =
-      phaseResult
-        .rows[0];
-
-    if (
-      phase.status ===
-      'finalized'
-    ) {
-      await client.query(
-        'COMMIT'
-      );
-
-      return {
-        status:
-          200,
-
-        body: {
-          alreadyFinalized:
-            true,
-
-          phaseDate:
-            toDateOnlyString(
-              phase.phase_date
-            )
-        }
-      };
-    }
-
-    const today =
-      getMoscowDateString();
-
-    if (
-      toDateOnlyString(
-        phase.phase_date
-      ) >=
-        today &&
-      !force
-    ) {
-      await client.query(
-        'ROLLBACK'
-      );
-
-      return {
-        status:
-          400,
-
-        body: {
-          error:
-            'phase_not_yet_ended'
-        }
-      };
-    }
-
-    await client.query(
-      `
-      UPDATE phases
-
-      SET
-        status =
-          'finalizing',
-
-        updated_at =
-          NOW()
-
-      WHERE
-        id =
-          $1
-      `,
-      [
-        phase.id
-      ]
-    );
-
-    const totalStars =
-      Number(
-        phase.total_stars ||
-          0
+      await getOrCreateCurrentPhase(
+        client
       );
 
     if (
-      !Number.isSafeInteger(
-        totalStars
-      ) ||
-      totalStars <
-        0
+      phase.status !==
+      "open"
     ) {
       throw new Error(
-        'invalid_total_stars'
+        "Today's phase is not open"
       );
     }
 
-    const publicPoolStars =
-      Math.floor(
-        totalStars *
-          0.70
-      );
-
-    const publicPoolUsd =
-      publicPoolStars *
-      STAR_USD_RATE;
-
-    const configuredWinnerCount =
-      getWinnerCountFromUsd(
-        publicPoolUsd
-      );
-
-    const winnerPool =
-      Math.floor(
-        totalStars *
-          0.69
-      );
-
-    const charity =
-      Math.floor(
-        totalStars *
-          0.01
-      );
-
-    const operations =
-      totalStars -
-      winnerPool -
-      charity;
-
-    const entriesResult =
-      await client.query(
-        `
-        SELECT
-          e.id,
-
-          e.telegram_user_id,
-
-          e.is_first_payer,
-
-          u.ton_wallet_address,
-
-          u.ton_wallet_verified_at
-
-        FROM
-          entries e
-
-        LEFT JOIN
-          users u
-
-        ON
-          u.telegram_id =
-            e.telegram_user_id
-
-        WHERE
-          e.phase_id =
-            $1
-
-        ORDER BY
-          e.id
-        `,
-        [
-          phase.id
-        ]
-      );
-
-    const entries =
-      entriesResult.rows;
-
-    let winnerCount =
-      0;
-
-    if (
-      entries.length >
-        0 &&
-      winnerPool >
-        0
-    ) {
-      winnerCount =
-        Math.min(
-          Math.max(
-            1,
-            configuredWinnerCount
-          ),
-
-          entries.length,
-
-          winnerPool
-        );
-    }
-
-    if (
-      winnerCount <=
-      0
-    ) {
-      const adjustedOperations =
-        operations +
-        winnerPool;
-
-      await client.query(
-        `
-        UPDATE phases
-
-        SET
-          status =
-            'finalized',
-
-          winner_pool_stars =
-            0,
-
-          charity_stars =
-            $1,
-
-          operations_stars =
-            $2,
-
-          winner_count =
-            0,
-
-          finalized_at =
-            NOW(),
-
-          updated_at =
-            NOW()
-
-        WHERE
-          id =
-            $3
-        `,
-        [
-          charity,
-
-          adjustedOperations,
-
-          phase.id
-        ]
-      );
-
-      await client.query(
-        `
-        INSERT INTO allocations (
-          phase_id,
-          type,
-          stars_amount
-        )
-
-        VALUES
-          (
-            $1,
-            'winners',
-            0
-          ),
-
-          (
-            $1,
-            'charity',
-            $2
-          ),
-
-          (
-            $1,
-            'operations',
-            $3
-          )
-
-        ON CONFLICT (
-          phase_id,
-          type
-        )
-
-        DO UPDATE SET
-          stars_amount =
-            EXCLUDED.stars_amount
-        `,
-        [
-          phase.id,
-
-          charity,
-
-          adjustedOperations
-        ]
-      );
-
-      await audit(
-        client,
-
-        'phase_finalized',
-
-        actorTelegramId,
-
-        phase.id,
-
-        {
-          winners:
-            0,
-
-          totalStars,
-
-          publicPoolStars,
-
-          publicPoolUsd
-        }
-      );
-
-      await client.query(
-        'COMMIT'
-      );
-
-      return {
-        status:
-          200,
-
-        body: {
-          finalized:
-            true,
-
-          winners:
-            0,
-
-          totalStars,
-
-          publicPoolStars,
-
-          publicPoolUsd
-        }
-      };
-    }
-
-    const firstPayer =
-      entries.find(
-        (
-          entry
-        ) =>
-          entry.is_first_payer
-      ) ||
-      entries.find(
-        (
-          entry
-        ) =>
-          String(
-            entry.id
-          ) ===
-          String(
-            phase.first_verified_entry_id
-          )
-      );
-
-    const selected =
-      [];
-
-    if (
-      firstPayer
-    ) {
-      selected.push(
-        firstPayer
-      );
-    }
-
-    const remaining =
-      secureShuffle(
-        entries.filter(
-          (
-            entry
-          ) =>
-            !firstPayer ||
-            String(
-              entry.id
-            ) !==
-              String(
-                firstPayer.id
-              )
-        )
-      );
-
-    while (
-      selected.length <
-        winnerCount &&
-      remaining.length
-    ) {
-      selected.push(
-        remaining.shift()
-      );
-    }
-
-    const basePrizePerWinner =
-      Math.floor(
-        winnerPool /
-          winnerCount
-      );
-
-    const winnerRemainder =
-      winnerPool -
-      basePrizePerWinner *
-        winnerCount;
-
-    for (
-      let index =
-        0;
-
-      index <
-        selected.length;
-
-      index++
-    ) {
-      const entry =
-        selected[index];
-
-      const rank =
-        index +
-        1;
-
-      const prizeStars =
-        basePrizePerWinner +
-        (
-          rank <=
-          winnerRemainder
-            ? 1
-            : 0
-        );
-
-      const prizeUsd =
-        prizeStars *
-        STAR_USD_RATE;
-
-      const usdtAmountMicro =
-        Math.max(
-          1,
-
-          Math.round(
-            prizeUsd *
-              1000000
-          )
-        );
-
-      const winnerResult =
+    const existing =
+      (
         await client.query(
           `
-          INSERT INTO winners (
-            phase_id,
-            entry_id,
-            telegram_user_id,
-            rank,
-            prize_stars,
-            is_first_payer
-          )
+            SELECT id
+            FROM entries
+            WHERE telegram_user_id = $1
+              AND phase_id = $2
+            LIMIT 1
+          `,
+          [
+            telegramUser.id,
+            phase.id,
+          ]
+        )
+      ).rows[0];
 
-          VALUES (
-            $1,
-            $2,
-            $3,
-            $4,
-            $5,
-            $6
-          )
+    if (
+      existing
+    ) {
+      throw new Error(
+        "You already have an entry for today's phase"
+      );
+    }
 
-          ON CONFLICT (
-            entry_id
-          )
-
-          DO UPDATE SET
-            rank =
-              EXCLUDED.rank,
-
-            prize_stars =
-              EXCLUDED.prize_stars,
-
-            is_first_payer =
-              EXCLUDED.is_first_payer
-
-          RETURNING
-            id
+    const grant =
+      (
+        await client.query(
+          `
+            SELECT *
+            FROM free_entry_grants
+            WHERE phase_id = $1
+              AND telegram_user_id = $2
+              AND status = 'available'
+            LIMIT 1
           `,
           [
             phase.id,
-
-            entry.id,
-
-            entry.telegram_user_id,
-
-            rank,
-
-            prizeStars,
-
-            Boolean(
-              entry.is_first_payer
-            )
+            telegramUser.id,
           ]
-        );
-
-      const winner =
-        winnerResult
-          .rows[0];
-
-      const walletVerified =
-        Boolean(
-          entry.ton_wallet_verified_at &&
-          entry.ton_wallet_address
-        );
-
-      await client.query(
-        `
-        INSERT INTO payouts (
-          phase_id,
-          winner_id,
-          telegram_user_id,
-          amount_stars,
-          prize_usd,
-          usdt_amount_micro,
-          settlement_asset,
-          status,
-          ton_wallet_address
         )
+      ).rows[0];
 
+    if (
+      grant
+    ) {
+      await client.query(
+        "COMMIT"
+      );
+
+      return {
+        freeEntry:
+          true,
+
+        phaseId:
+          Number(
+            phase.id
+          ),
+      };
+    }
+
+    const invoiceToken =
+      crypto.randomUUID();
+
+    const payload =
+      `pz_entry:${invoiceToken}:${phase.id}:${telegramUser.id}`;
+
+    const expiresAt =
+      new Date(
+        Date.now() +
+          15 *
+            60_000
+      );
+
+    await client.query(
+      `
+        INSERT INTO invoices (
+          invoice_token,
+          telegram_user_id,
+          phase_id,
+          stars_amount,
+          currency,
+          payload,
+          status,
+          expires_at
+        )
         VALUES (
           $1,
           $2,
           $3,
           $4,
+          'XTR',
           $5,
-          $6,
-          'USDT_TON',
-          $7,
-          $8
+          'created',
+          $6
         )
-
-        ON CONFLICT (
-          winner_id
-        )
-
-        DO UPDATE SET
-          amount_stars =
-            EXCLUDED.amount_stars,
-
-          prize_usd =
-            EXCLUDED.prize_usd,
-
-          usdt_amount_micro =
-            EXCLUDED.usdt_amount_micro,
-
-          settlement_asset =
-            'USDT_TON',
-
-          ton_wallet_address =
-            COALESCE(
-              payouts.ton_wallet_address,
-              EXCLUDED.ton_wallet_address
-            ),
-
-          status =
-            CASE
-
-              WHEN payouts.status
-                IN (
-                  'paid',
-                  'processing',
-                  'submitted'
-                )
-
-              THEN
-                payouts.status
-
-              WHEN
-                EXCLUDED.ton_wallet_address
-                  IS NULL
-
-              THEN
-                'waiting_wallet'
-
-              ELSE
-                'pending'
-
-            END
-        `,
-        [
-          phase.id,
-
-          winner.id,
-
-          entry.telegram_user_id,
-
-          prizeStars,
-
-          prizeUsd.toFixed(
-            6
-          ),
-
-          usdtAmountMicro,
-
-          walletVerified
-            ? 'pending'
-            : 'waiting_wallet',
-
-          walletVerified
-            ? entry.ton_wallet_address
-            : null
-        ]
-      );
-    }
-
-    await client.query(
-      `
-      UPDATE phases
-
-      SET
-        status =
-          'finalized',
-
-        winner_pool_stars =
-          $1,
-
-        charity_stars =
-          $2,
-
-        operations_stars =
-          $3,
-
-        winner_count =
-          $4,
-
-        finalized_at =
-          NOW(),
-
-        updated_at =
-          NOW()
-
-      WHERE
-        id =
-          $5
       `,
       [
-        winnerPool,
-
-        charity,
-
-        operations,
-
-        winnerCount,
-
-        phase.id
-      ]
-    );
-
-    await client.query(
-      `
-      INSERT INTO allocations (
-        phase_id,
-        type,
-        stars_amount
-      )
-
-      VALUES
-        (
-          $1,
-          'winners',
-          $2
-        ),
-
-        (
-          $1,
-          'charity',
-          $3
-        ),
-
-        (
-          $1,
-          'operations',
-          $4
-        )
-
-      ON CONFLICT (
-        phase_id,
-        type
-      )
-
-      DO UPDATE SET
-        stars_amount =
-          EXCLUDED.stars_amount
-      `,
-      [
+        invoiceToken,
+        telegramUser.id,
         phase.id,
-
-        winnerPool,
-
-        charity,
-
-        operations
+        ENTRY_STARS,
+        payload,
+        expiresAt,
       ]
     );
+
+    const invoiceLink =
+      await telegramApi(
+        "createInvoiceLink",
+        {
+          title:
+            "Project Z Daily Entry",
+
+          description:
+            `Project Z daily entry — ${ENTRY_STARS} Telegram Stars`,
+
+          payload,
+
+          currency:
+            "XTR",
+
+          prices: [
+            {
+              label:
+                "Daily entry",
+
+              amount:
+                ENTRY_STARS,
+            },
+          ],
+        }
+      );
 
     await audit(
       client,
-
-      'phase_finalized',
-
-      actorTelegramId,
-
+      "invoice_created",
+      telegramUser.id,
       phase.id,
-
       {
-        totalStars,
+        invoiceToken,
 
-        publicPoolStars,
-
-        publicPoolUsd,
-
-        configuredWinnerCount,
-
-        actualWinnerCount:
-          winnerCount,
-
-        firstPayerGuaranteed:
-          Boolean(
-            firstPayer
-          ),
-
-        settlementAsset:
-          'USDT_TON',
-
-        automaticSettlementEnabled:
-          false
+        stars:
+          ENTRY_STARS,
       }
     );
 
     await client.query(
-      'COMMIT'
+      "COMMIT"
     );
 
     return {
-      status:
-        200,
+      freeEntry:
+        false,
 
-      body: {
-        finalized:
-          true,
+      invoiceLink,
 
-        phaseDate:
-          toDateOnlyString(
-            phase.phase_date
-          ),
+      invoiceToken,
 
-        totalStars,
+      stars:
+        ENTRY_STARS,
 
-        publicPoolStars,
-
-        publicPoolUsd,
-
-        winners:
-          winnerCount,
-
-        firstPayerGuaranteed:
-          Boolean(
-            firstPayer
-          ),
-
-        winnerPoolStars:
-          winnerPool,
-
-        charityStars:
-          charity,
-
-        operationsStars:
-          operations,
-
-        payoutsCreated:
-          winnerCount,
-
-        settlementAsset:
-          'USDT_TON',
-
-        automaticSettlementEnabled:
-          false
-      }
+      entryUsdDisplay:
+        ENTRY_USD_DISPLAY,
     };
   } catch (
     error
   ) {
-    try {
-      await client.query(
-        'ROLLBACK'
-      );
-    } catch {}
+    await client.query(
+      "ROLLBACK"
+    );
 
     throw error;
   } finally {
@@ -6400,770 +3065,3251 @@ async function finalizePhaseByDate(
 }
 
 /* =========================================================
-   ADMIN
+   PAYMENT WEBHOOK HANDLING
 ========================================================= */
 
-function verifyAdmin(
-  req
+async function handlePreCheckoutQuery(
+  query
 ) {
-  const supplied =
-    req.headers[
-      'x-admin-secret'
-    ] ||
-    req.body
-      ?.adminSecret ||
-    '';
-
-  return (
-    Boolean(
-      ADMIN_SECRET
-    ) &&
-    timingSafeStringEqual(
-      String(
-        supplied
-      ),
-
-      ADMIN_SECRET
-    )
-  );
-}
-
-app.post(
-  '/api/admin/finalize-phase',
-
-  async (
-    req,
-    res
-  ) => {
-    if (
-      !verifyAdmin(
-        req
-      )
-    ) {
-      return res
-        .status(
-          403
-        )
-        .json({
-          error:
-            'forbidden'
-        });
-    }
-
-    const requestedPhaseDate =
-      req.body
-        ?.phaseDate
-        ? String(
-            req.body.phaseDate
-          ).slice(
-            0,
-            10
-          )
-        : getMoscowDateString();
-
-    if (
-      !/^\d{4}-\d{2}-\d{2}$/.test(
-        requestedPhaseDate
-      )
-    ) {
-      return res
-        .status(
-          400
-        )
-        .json({
-          error:
-            'invalid_phase_date'
-        });
-    }
-
-    try {
-      const result =
-        await finalizePhaseByDate(
-          requestedPhaseDate,
-
-          Boolean(
-            req.body
-              ?.force
-          )
-        );
-
-      return res
-        .status(
-          result.status
-        )
-        .json(
-          result.body
-        );
-    } catch (
-      error
-    ) {
-      console.error(
-        'finalize error:',
-        error
-      );
-
-      return res
-        .status(
-          500
-        )
-        .json({
-          error:
-            'finalize_failed'
-        });
-    }
-  }
-);
-
-app.get(
-  '/api/admin/payouts',
-
-  async (
-    req,
-    res
-  ) => {
-    if (
-      !verifyAdmin(
-        req
-      )
-    ) {
-      return res
-        .status(
-          403
-        )
-        .json({
-          error:
-            'forbidden'
-        });
-    }
-
-    const result =
-      await pool.query(
-        `
-        SELECT
-          p.*,
-
-          w.rank,
-
-          ph.phase_date,
-
-          u.username,
-
-          u.first_name,
-
-          u.last_name
-
-        FROM
-          payouts p
-
-        JOIN
-          winners w
-
-        ON
-          w.id =
-            p.winner_id
-
-        JOIN
-          phases ph
-
-        ON
-          ph.id =
-            p.phase_id
-
-        LEFT JOIN
-          users u
-
-        ON
-          u.telegram_id =
-            p.telegram_user_id
-
-        ORDER BY
-          p.id DESC
-
-        LIMIT
-          500
-        `
-      );
-
-    return res.json({
-      settlementAsset:
-        'USDT_TON',
-
-      automaticSettlementEnabled:
-        false,
-
-      treasuryVerified:
-        treasuryState
-          .verified,
-
-      payouts:
-        result.rows
-    });
-  }
-);
-
-app.get(
-  '/api/admin/star-balance',
-
-  async (
-    req,
-    res
-  ) => {
-    if (
-      !verifyAdmin(
-        req
-      )
-    ) {
-      return res
-        .status(
-          403
-        )
-        .json({
-          error:
-            'forbidden'
-        });
-    }
-
-    try {
-      const balance =
-        await telegramApi(
-          'getMyStarBalance'
-        );
-
-      return res.json({
-        ok:
-          true,
-
-        balance
-      });
-    } catch (
-      error
-    ) {
-      return res
-        .status(
-          502
-        )
-        .json({
-          ok:
-            false,
-
-          error:
-            error.message
-        });
-    }
-  }
-);
-
-/* =========================================================
-   PUBLIC WINNERS
-========================================================= */
-
-app.get(
-  '/api/winners',
-
-  async (
-    req,
-    res
-  ) => {
-    const phaseDate =
-      String(
-        req.query
-          .phaseDate ||
-          getMoscowDateString()
-      ).slice(
-        0,
-        10
-      );
-
-    if (
-      !/^\d{4}-\d{2}-\d{2}$/.test(
-        phaseDate
-      )
-    ) {
-      return res
-        .status(
-          400
-        )
-        .json({
-          error:
-            'invalid_phase_date'
-        });
-    }
-
-    const phase =
-      await pool.query(
-        `
-        SELECT *
-        FROM phases
-
-        WHERE
-          phase_date =
-            $1
-        `,
-        [
-          phaseDate
-        ]
-      );
-
-    if (
-      !phase.rows.length
-    ) {
-      return res.json({
-        phaseDate,
-
-        finalized:
-          false,
-
-        winnerCount:
-          0,
-
-        winners:
-          []
-      });
-    }
-
-    const result =
-      await pool.query(
-        `
-        SELECT
-          w.rank,
-
-          w.prize_stars,
-
-          w.is_first_payer,
-
-          u.username,
-
-          u.first_name,
-
-          u.last_name,
-
-          p.status
-            AS payout_status,
-
-          p.prize_usd,
-
-          p.usdt_amount_micro,
-
-          p.ton_wallet_address,
-
-          p.ton_tx_hash
-
-        FROM
-          winners w
-
-        LEFT JOIN
-          users u
-
-        ON
-          u.telegram_id =
-            w.telegram_user_id
-
-        LEFT JOIN
-          payouts p
-
-        ON
-          p.winner_id =
-            w.id
-
-        WHERE
-          w.phase_id =
-            $1
-
-        ORDER BY
-          w.rank
-        `,
-        [
-          phase.rows[0]
-            .id
-        ]
-      );
-
-    return res.json({
-      phaseDate,
-
-      finalized:
-        phase.rows[0]
-          .status ===
-        'finalized',
-
-      winnerCount:
-        Number(
-          phase.rows[0]
-            .winner_count ||
-            0
-        ),
-
-      settlementAsset:
-        'USDT_TON',
-
-      winners:
-        result.rows.map(
-          (
-            winner
-          ) => {
-            const fullName =
-              [
-                winner.first_name,
-
-                winner.last_name
-              ]
-                .filter(
-                  Boolean
-                )
-                .join(
-                  ' '
-                )
-                .trim();
-
-            return {
-              rank:
-                Number(
-                  winner.rank
-                ),
-
-              username:
-                winner.username ||
-                null,
-
-              displayName:
-                winner.username ||
-                fullName ||
-                'Winner',
-
-              prizeStars:
-                Number(
-                  winner.prize_stars
-                ),
-
-              prizeUsd:
-                Number(
-                  winner.prize_usd ||
-                    0
-                ),
-
-              prizeUsdt:
-                Number(
-                  winner.usdt_amount_micro ||
-                    0
-                ) /
-                1000000,
-
-              isFirstPayer:
-                Boolean(
-                  winner.is_first_payer
-                ),
-
-              payoutStatus:
-                winner.payout_status ||
-                'pending',
-
-              walletConnected:
-                Boolean(
-                  winner.ton_wallet_address
-                ),
-
-              tonTxHash:
-                winner.ton_tx_hash ||
-                null
-            };
-          }
-        )
-    });
-  }
-);
-
-/* =========================================================
-   WORKERS
-========================================================= */
-
-async function autoFinalizeExpiredPhases() {
-  const today =
-    getMoscowDateString();
-
-  const result =
-    await pool.query(
-      `
-      SELECT
-        phase_date
-
-      FROM
-        phases
-
-      WHERE
-        phase_date <
-          $1
-
-        AND status IN (
-          'open',
-          'finalizing'
-        )
-
-      ORDER BY
-        phase_date ASC
-
-      LIMIT
-        31
-      `,
-      [
-        today
-      ]
-    );
-
-  for (
-    const row
-    of result.rows
-  ) {
-    const phaseDate =
-      toDateOnlyString(
-        row.phase_date
-      );
-
-    try {
-      const finalized =
-        await finalizePhaseByDate(
-          phaseDate,
-          false
-        );
-
-      console.log(
-        'Auto-finalize:',
-        phaseDate,
-        finalized.status,
-        finalized.body
-      );
-    } catch (
-      error
-    ) {
-      console.error(
-        'Auto-finalize failed:',
-        phaseDate,
-        error
-      );
-    }
-  }
-}
-
-async function monitorPayoutQueue() {
-  const result =
-    await pool.query(
-      `
-      SELECT
-        p.id,
-
-        p.telegram_user_id,
-
-        p.amount_stars,
-
-        p.prize_usd,
-
-        p.usdt_amount_micro,
-
-        p.status,
-
-        p.ton_wallet_address,
-
-        w.rank
-
-      FROM
-        payouts p
-
-      JOIN
-        winners w
-
-      ON
-        w.id =
-          p.winner_id
-
-      WHERE
-        p.status IN (
-          'pending',
-          'waiting_wallet'
-        )
-
-      ORDER BY
-        p.id ASC
-
-      LIMIT
-        50
-      `
-    );
-
-  for (
-    const payout
-    of result.rows
-  ) {
-    if (
-      !payout
-        .ton_wallet_address
-    ) {
-      console.log(
-        'Payout waiting for verified wallet:',
-        {
-          payoutId:
-            payout.id,
-
-          telegramUserId:
-            payout.telegram_user_id
-        }
-      );
-    } else {
-      console.log(
-        'Payout ready for settlement:',
-        {
-          payoutId:
-            payout.id,
-
-          wallet:
-            payout.ton_wallet_address,
-
-          usdt:
-            Number(
-              payout.usdt_amount_micro ||
-                0
-            ) /
-            1000000,
-
-          rank:
-            payout.rank
-        }
-      );
-    }
-  }
-}
-
-function startWorkers() {
-  monitorPayoutQueue()
-    .catch(
-      console.error
-    );
-
-  retryFailedRefunds()
-    .catch(
-      console.error
-    );
-
-  autoFinalizeExpiredPhases()
-    .catch(
-      console.error
-    );
-
-  setInterval(
-    () => {
-      monitorPayoutQueue()
-        .catch(
-          console.error
-        );
-    },
-
-    30 *
-      1000
-  );
-
-  setInterval(
-    () => {
-      retryFailedRefunds()
-        .catch(
-          console.error
-        );
-    },
-
-    5 *
-      60 *
-      1000
-  );
-
-  setInterval(
-    () => {
-      autoFinalizeExpiredPhases()
-        .catch(
-          console.error
-        );
-    },
-
-    60 *
-      1000
-  );
-
-  console.log(
-    'Background workers started.'
-  );
-}
-
-/* =========================================================
-   TELEGRAM WEBHOOK CONFIG
-========================================================= */
-
-async function configureTelegramWebhook() {
-  if (
-    !BOT_TOKEN ||
-    !WEBHOOK_SECRET ||
-    !APP_URL
-  ) {
-    console.log(
-      'Webhook setup skipped: missing Telegram configuration.'
-    );
-
-    return;
-  }
-
-  const webhookUrl =
-    `${APP_URL.replace(
-      /\/$/,
-      ''
-    )}/telegram/webhook`;
-
   try {
-    const result =
-      await telegramApi(
-        'setWebhook',
+    const invoice =
+      (
+        await pool.query(
+          `
+            SELECT
+              i.*,
+              p.status AS phase_status,
+              p.phase_date
 
-        {
-          url:
-            webhookUrl,
+            FROM invoices i
 
-          secret_token:
-            WEBHOOK_SECRET,
+            JOIN phases p
+              ON p.id = i.phase_id
 
-          allowed_updates: [
-            'message',
-            'pre_checkout_query'
-          ],
+            WHERE i.payload = $1
 
-          drop_pending_updates:
-            false
-        }
-      );
+            LIMIT 1
+          `,
+          [
+            query.invoice_payload,
+          ]
+        )
+      ).rows[0];
 
-    console.log(
-      'Telegram webhook configured:',
-      result
+    let ok =
+      true;
+
+    let errorMessage =
+      undefined;
+
+    if (
+      !invoice
+    ) {
+      ok =
+        false;
+
+      errorMessage =
+        "Invoice not found.";
+    } else if (
+      invoice.status !==
+      "created"
+    ) {
+      ok =
+        false;
+
+      errorMessage =
+        "Invoice is no longer active.";
+    } else if (
+      new Date(
+        invoice.expires_at
+      ).getTime() <=
+      Date.now()
+    ) {
+      ok =
+        false;
+
+      errorMessage =
+        "Invoice expired. Please create a new one.";
+    } else if (
+      String(
+        query.currency
+      ) !==
+      "XTR"
+    ) {
+      ok =
+        false;
+
+      errorMessage =
+        "Invalid payment currency.";
+    } else if (
+      Number(
+        query.total_amount
+      ) !==
+      Number(
+        invoice.stars_amount
+      )
+    ) {
+      ok =
+        false;
+
+      errorMessage =
+        "Invalid payment amount.";
+    } else if (
+      Number(
+        query.from
+          ?.id
+      ) !==
+      Number(
+        invoice.telegram_user_id
+      )
+    ) {
+      ok =
+        false;
+
+      errorMessage =
+        "This invoice belongs to another user.";
+    } else if (
+      invoice.phase_status !==
+        "open" ||
+      toDateOnlyString(
+        invoice.phase_date
+      ) !==
+        getMoscowDateString()
+    ) {
+      ok =
+        false;
+
+      errorMessage =
+        "This daily phase has ended.";
+    }
+
+    await telegramApi(
+      "answerPreCheckoutQuery",
+      {
+        pre_checkout_query_id:
+          query.id,
+
+        ok,
+
+        ...(ok
+          ? {}
+          : {
+              error_message:
+                errorMessage,
+            }),
+      }
     );
   } catch (
     error
   ) {
     console.error(
-      'Webhook configuration failed:',
+      "Pre-checkout error:",
       error.message
     );
+
+    try {
+      await telegramApi(
+        "answerPreCheckoutQuery",
+        {
+          pre_checkout_query_id:
+            query.id,
+
+          ok:
+            false,
+
+          error_message:
+            "Payment validation failed. Please try again.",
+        }
+      );
+    } catch {}
+  }
+}
+
+async function queueUnexpectedRefund({
+  userId,
+  telegramPaymentChargeId,
+  reason,
+}) {
+  if (
+    !telegramPaymentChargeId
+  ) {
+    return;
+  }
+
+  await pool.query(
+    `
+      INSERT INTO payment_reconciliations (
+        telegram_user_id,
+        telegram_payment_charge_id,
+        reason,
+        status
+      )
+      VALUES (
+        $1,
+        $2,
+        $3,
+        'refund_pending'
+      )
+      ON CONFLICT (
+        telegram_payment_charge_id
+      )
+      DO NOTHING
+    `,
+    [
+      userId ||
+        null,
+
+      telegramPaymentChargeId,
+
+      reason,
+    ]
+  );
+}
+
+async function handleSuccessfulPayment(
+  message
+) {
+  const payment =
+    message
+      ?.successful_payment;
+
+  const userId =
+    message
+      ?.from
+      ?.id;
+
+  if (
+    !payment ||
+    !userId
+  ) {
+    return;
+  }
+
+  const chargeId =
+    payment.telegram_payment_charge_id;
+
+  const payload =
+    payment.invoice_payload;
+
+  const client =
+    await pool.connect();
+
+  try {
+    await client.query(
+      "BEGIN"
+    );
+
+    const duplicate =
+      (
+        await client.query(
+          `
+            SELECT id
+            FROM payments
+            WHERE telegram_payment_charge_id = $1
+            LIMIT 1
+          `,
+          [
+            chargeId,
+          ]
+        )
+      ).rows[0];
+
+    if (
+      duplicate
+    ) {
+      await client.query(
+        "COMMIT"
+      );
+
+      return;
+    }
+
+    const invoice =
+      (
+        await client.query(
+          `
+            SELECT
+              i.*,
+              p.status AS phase_status,
+              p.phase_date
+
+            FROM invoices i
+
+            JOIN phases p
+              ON p.id = i.phase_id
+
+            WHERE i.payload = $1
+
+            FOR UPDATE OF i, p
+          `,
+          [
+            payload,
+          ]
+        )
+      ).rows[0];
+
+    const invalidReason =
+      !invoice
+        ? "invoice_not_found"
+
+        : Number(
+            invoice.telegram_user_id
+          ) !==
+          Number(
+            userId
+          )
+          ? "wrong_user"
+
+        : String(
+            payment.currency
+          ) !==
+          "XTR"
+          ? "wrong_currency"
+
+        : Number(
+            payment.total_amount
+          ) !==
+          Number(
+            invoice.stars_amount
+          )
+          ? "wrong_amount"
+
+        : invoice.status ===
+          "paid"
+          ? "invoice_already_paid"
+
+        : invoice.phase_status !==
+            "open" ||
+          toDateOnlyString(
+            invoice.phase_date
+          ) !==
+            getMoscowDateString()
+          ? "phase_closed"
+
+        : null;
+
+    if (
+      invalidReason
+    ) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      await queueUnexpectedRefund({
+        userId,
+
+        telegramPaymentChargeId:
+          chargeId,
+
+        reason:
+          invalidReason,
+      });
+
+      return;
+    }
+
+    await upsertUser(
+      client,
+      message.from
+    );
+
+    const paymentRow =
+      (
+        await client.query(
+          `
+            INSERT INTO payments (
+              telegram_payment_charge_id,
+              provider_payment_charge_id,
+              telegram_user_id,
+              phase_id,
+              stars_amount,
+              currency,
+              invoice_payload,
+              status,
+              raw_payment
+            )
+            VALUES (
+              $1,
+              $2,
+              $3,
+              $4,
+              $5,
+              'XTR',
+              $6,
+              'succeeded',
+              $7::jsonb
+            )
+            RETURNING *
+          `,
+          [
+            chargeId,
+
+            payment.provider_payment_charge_id ||
+              null,
+
+            userId,
+
+            invoice.phase_id,
+
+            invoice.stars_amount,
+
+            invoice.payload,
+
+            safeJson(
+              payment
+            ),
+          ]
+        )
+      ).rows[0];
+
+    const firstPaidCount =
+      Number(
+        (
+          await client.query(
+            `
+              SELECT
+                COUNT(*)::int
+                  AS count
+
+              FROM entries
+
+              WHERE phase_id = $1
+                AND is_free = FALSE
+            `,
+            [
+              invoice.phase_id,
+            ]
+          )
+        ).rows[0]
+          ?.count ||
+          0
+      );
+
+    await client.query(
+      `
+        INSERT INTO entries (
+          telegram_user_id,
+          phase_id,
+          payment_id,
+          source,
+          is_free,
+          is_first_payer
+        )
+        VALUES (
+          $1,
+          $2,
+          $3,
+          'paid',
+          FALSE,
+          $4
+        )
+        ON CONFLICT (
+          telegram_user_id,
+          phase_id
+        )
+        DO NOTHING
+      `,
+      [
+        userId,
+
+        invoice.phase_id,
+
+        paymentRow.id,
+
+        firstPaidCount ===
+          0,
+      ]
+    );
+
+    if (
+      firstPaidCount ===
+      0
+    ) {
+      const firstEntry =
+        (
+          await client.query(
+            `
+              SELECT id
+              FROM entries
+              WHERE telegram_user_id = $1
+                AND phase_id = $2
+              LIMIT 1
+            `,
+            [
+              userId,
+
+              invoice.phase_id,
+            ]
+          )
+        ).rows[0];
+
+      if (
+        firstEntry
+      ) {
+        await client.query(
+          `
+            UPDATE phases
+            SET
+              first_verified_entry_id =
+                COALESCE(
+                  first_verified_entry_id,
+                  $2
+                )
+            WHERE id = $1
+          `,
+          [
+            invoice.phase_id,
+
+            firstEntry.id,
+          ]
+        );
+      }
+    }
+
+    await client.query(
+      `
+        UPDATE invoices
+        SET
+          status = 'paid',
+
+          paid_at = NOW()
+
+        WHERE id = $1
+      `,
+      [
+        invoice.id,
+      ]
+    );
+
+    await maybeRecordReferralConversion(
+      client,
+      userId,
+      invoice.phase_id,
+      paymentRow.id
+    );
+
+    await refreshPhaseTotals(
+      client,
+      invoice.phase_id
+    );
+
+    await audit(
+      client,
+      "payment_succeeded",
+      userId,
+      invoice.phase_id,
+      {
+        paymentId:
+          paymentRow.id,
+
+        chargeId,
+
+        stars:
+          invoice.stars_amount,
+      }
+    );
+
+    await client.query(
+      "COMMIT"
+    );
+  } catch (
+    error
+  ) {
+    await client.query(
+      "ROLLBACK"
+    );
+
+    console.error(
+      "Successful payment processing failed:",
+      error.message
+    );
+
+    await queueUnexpectedRefund({
+      userId,
+
+      telegramPaymentChargeId:
+        chargeId,
+
+      reason:
+        `processing_error:${error.message}`.slice(
+          0,
+          500
+        ),
+    }).catch(
+      () => {}
+    );
+  } finally {
+    client.release();
   }
 }
 
 /* =========================================================
-   START
+   REFUND WORKER
+========================================================= */
+
+async function processPendingRefunds() {
+  if (
+    !BOT_TOKEN
+  ) {
+    return;
+  }
+
+  const rows =
+    (
+      await pool.query(
+        `
+          SELECT *
+          FROM payment_reconciliations
+          WHERE status = 'refund_pending'
+            AND attempts < 10
+          ORDER BY created_at ASC
+          LIMIT 10
+        `
+      )
+    ).rows;
+
+  for (
+    const row
+    of rows
+  ) {
+    try {
+      await telegramApi(
+        "refundStarPayment",
+        {
+          user_id:
+            Number(
+              row.telegram_user_id
+            ),
+
+          telegram_payment_charge_id:
+            row.telegram_payment_charge_id,
+        }
+      );
+
+      await pool.query(
+        `
+          UPDATE payment_reconciliations
+          SET
+            status = 'refunded',
+
+            attempts =
+              attempts + 1,
+
+            last_error =
+              NULL,
+
+            updated_at =
+              NOW()
+
+          WHERE id = $1
+        `,
+        [
+          row.id,
+        ]
+      );
+
+      await pool.query(
+        `
+          UPDATE payments
+          SET
+            status = 'refunded',
+
+            refunded_at =
+              NOW()
+
+          WHERE telegram_payment_charge_id = $1
+        `,
+        [
+          row.telegram_payment_charge_id,
+        ]
+      );
+    } catch (
+      error
+    ) {
+      await pool.query(
+        `
+          UPDATE payment_reconciliations
+          SET
+            attempts =
+              attempts + 1,
+
+            last_error = $2,
+
+            updated_at =
+              NOW()
+
+          WHERE id = $1
+        `,
+        [
+          row.id,
+
+          String(
+            error.message
+          ).slice(
+            0,
+            1000
+          ),
+        ]
+      );
+    }
+  }
+}
+
+/* =========================================================
+   FREE ENTRY CLAIM
+========================================================= */
+
+async function claimFreeEntry(
+  telegramUser
+) {
+  const client =
+    await pool.connect();
+
+  try {
+    await client.query(
+      "BEGIN"
+    );
+
+    await upsertUser(
+      client,
+      telegramUser
+    );
+
+    const phase =
+      await getOrCreateCurrentPhase(
+        client
+      );
+
+    const existing =
+      (
+        await client.query(
+          `
+            SELECT id
+            FROM entries
+            WHERE telegram_user_id = $1
+              AND phase_id = $2
+            LIMIT 1
+          `,
+          [
+            telegramUser.id,
+            phase.id,
+          ]
+        )
+      ).rows[0];
+
+    if (
+      existing
+    ) {
+      throw new Error(
+        "You already have an entry for today's phase"
+      );
+    }
+
+    const grant =
+      (
+        await client.query(
+          `
+            SELECT *
+            FROM free_entry_grants
+            WHERE phase_id = $1
+              AND telegram_user_id = $2
+              AND status = 'available'
+            FOR UPDATE
+          `,
+          [
+            phase.id,
+            telegramUser.id,
+          ]
+        )
+      ).rows[0];
+
+    if (
+      !grant
+    ) {
+      throw new Error(
+        "No free entry is currently available"
+      );
+    }
+
+    await client.query(
+      `
+        INSERT INTO entries (
+          telegram_user_id,
+          phase_id,
+          source,
+          is_free,
+          is_first_payer
+        )
+        VALUES (
+          $1,
+          $2,
+          'referral_free',
+          TRUE,
+          FALSE
+        )
+      `,
+      [
+        telegramUser.id,
+        phase.id,
+      ]
+    );
+
+    await client.query(
+      `
+        UPDATE free_entry_grants
+        SET
+          status = 'claimed',
+
+          claimed_at =
+            NOW()
+
+        WHERE id = $1
+      `,
+      [
+        grant.id,
+      ]
+    );
+
+    await refreshPhaseTotals(
+      client,
+      phase.id
+    );
+
+    await audit(
+      client,
+      "free_entry_claimed",
+      telegramUser.id,
+      phase.id,
+      {
+        grantId:
+          grant.id,
+      }
+    );
+
+    await client.query(
+      "COMMIT"
+    );
+
+    return {
+      ok:
+        true,
+
+      phaseId:
+        Number(
+          phase.id
+        ),
+    };
+  } catch (
+    error
+  ) {
+    await client.query(
+      "ROLLBACK"
+    );
+
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+/* =========================================================
+   DRAW / FINALIZATION
+========================================================= */
+
+function deterministicOrder(
+  seedText,
+  phaseId,
+  entries
+) {
+  const seed =
+    Buffer.from(
+      seedText,
+      "base64url"
+    );
+
+  return entries
+    .map(
+      (
+        entry
+      ) => ({
+        ...entry,
+
+        _score:
+          crypto
+            .createHmac(
+              "sha256",
+              seed
+            )
+            .update(
+              `${phaseId}:${entry.id}:${entry.telegram_user_id}`
+            )
+            .digest(
+              "hex"
+            ),
+      })
+    )
+    .sort(
+      (
+        a,
+        b
+      ) =>
+        a._score.localeCompare(
+          b._score
+        )
+    );
+}
+
+async function finalizePhase(
+  phaseId
+) {
+  const client =
+    await pool.connect();
+
+  try {
+    await client.query(
+      "BEGIN"
+    );
+
+    const phase =
+      (
+        await client.query(
+          `
+            SELECT *
+            FROM phases
+            WHERE id = $1
+            FOR UPDATE
+          `,
+          [
+            phaseId,
+          ]
+        )
+      ).rows[0];
+
+    if (
+      !phase
+    ) {
+      throw new Error(
+        "Phase not found"
+      );
+    }
+
+    if (
+      phase.status ===
+      "finalized"
+    ) {
+      await client.query(
+        "COMMIT"
+      );
+
+      return phase;
+    }
+
+    if (
+      !isPastMoscowDate(
+        phase.phase_date
+      )
+    ) {
+      throw new Error(
+        "Current/future phase cannot be finalized"
+      );
+    }
+
+    await refreshPhaseTotals(
+      client,
+      phase.id
+    );
+
+    const refreshed =
+      (
+        await client.query(
+          `
+            SELECT *
+            FROM phases
+            WHERE id = $1
+            FOR UPDATE
+          `,
+          [
+            phase.id,
+          ]
+        )
+      ).rows[0];
+
+    const entries =
+      (
+        await client.query(
+          `
+            SELECT
+              e.*,
+              u.display_name
+
+            FROM entries e
+
+            LEFT JOIN users u
+              ON u.telegram_id =
+                e.telegram_user_id
+
+            WHERE e.phase_id = $1
+
+            ORDER BY e.id ASC
+          `,
+          [
+            phase.id,
+          ]
+        )
+      ).rows;
+
+    const grossUsd =
+      Number(
+        refreshed.gross_usd ||
+          0
+      );
+
+    const requestedWinnerCount =
+      winnerCountForGrossUsd(
+        grossUsd
+      );
+
+    const actualWinnerCount =
+      Math.min(
+        requestedWinnerCount,
+        entries.length
+      );
+
+    const seedText =
+      refreshed.draw_seed_secret ||
+      randomToken(
+        32
+      );
+
+    if (
+      !refreshed.draw_commit_hash
+    ) {
+      await client.query(
+        `
+          UPDATE phases
+          SET
+            draw_seed_secret = $2,
+
+            draw_commit_hash = $3
+
+          WHERE id = $1
+        `,
+        [
+          phase.id,
+
+          seedText,
+
+          sha256Hex(
+            Buffer.from(
+              seedText,
+              "base64url"
+            )
+          ),
+        ]
+      );
+    }
+
+    let selected =
+      [];
+
+    if (
+      actualWinnerCount >
+      0
+    ) {
+      const firstPayer =
+        entries.find(
+          (
+            entry
+          ) =>
+            entry.is_first_payer ===
+            true
+        ) ||
+        entries.find(
+          (
+            entry
+          ) =>
+            entry.is_first_payer
+        ) ||
+        null;
+
+      const others =
+        entries.filter(
+          (
+            entry
+          ) =>
+            !firstPayer ||
+            Number(
+              entry.id
+            ) !==
+              Number(
+                firstPayer.id
+              )
+        );
+
+      const ordered =
+        deterministicOrder(
+          seedText,
+          phase.id,
+          others
+        );
+
+      selected =
+        firstPayer
+          ? [
+              firstPayer,
+              ...ordered.slice(
+                0,
+                Math.max(
+                  0,
+                  actualWinnerCount -
+                    1
+                )
+              ),
+            ]
+          : ordered.slice(
+              0,
+              actualWinnerCount
+            );
+    }
+
+    const winnerPoolUsd =
+      grossUsd *
+      WINNER_SHARE;
+
+    const winnerPoolStarsEquiv =
+      Number(
+        refreshed.total_stars ||
+          0
+      ) *
+      WINNER_SHARE;
+
+    const perWinnerUsd =
+      selected.length >
+      0
+        ? winnerPoolUsd /
+          selected.length
+        : 0;
+
+    const perWinnerStarsEquiv =
+      selected.length >
+      0
+        ? winnerPoolStarsEquiv /
+          selected.length
+        : 0;
+
+    for (
+      let i = 0;
+      i <
+      selected.length;
+      i++
+    ) {
+      const entry =
+        selected[i];
+
+      const winner =
+        (
+          await client.query(
+            `
+              INSERT INTO winners (
+                phase_id,
+                entry_id,
+                telegram_user_id,
+                rank,
+                prize_stars,
+                is_first_payer,
+                prize_usd,
+                prize_stars_equiv
+              )
+              VALUES (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8
+              )
+              ON CONFLICT (
+                entry_id
+              )
+              DO UPDATE SET
+                rank =
+                  EXCLUDED.rank,
+
+                prize_stars =
+                  EXCLUDED.prize_stars,
+
+                is_first_payer =
+                  EXCLUDED.is_first_payer,
+
+                prize_usd =
+                  EXCLUDED.prize_usd,
+
+                prize_stars_equiv =
+                  EXCLUDED.prize_stars_equiv
+
+              RETURNING *
+            `,
+            [
+              phase.id,
+
+              entry.id,
+
+              entry.telegram_user_id,
+
+              i +
+                1,
+
+              money6(
+                perWinnerStarsEquiv
+              ),
+
+              Boolean(
+                entry.is_first_payer
+              ),
+
+              money6(
+                perWinnerUsd
+              ),
+
+              money6(
+                perWinnerStarsEquiv
+              ),
+            ]
+          )
+        ).rows[0];
+
+      const userWallet =
+        (
+          await client.query(
+            `
+              SELECT
+                ton_wallet_address
+
+              FROM users
+
+              WHERE telegram_id = $1
+            `,
+            [
+              entry.telegram_user_id,
+            ]
+          )
+        ).rows[0]
+          ?.ton_wallet_address;
+
+      await client.query(
+        `
+          INSERT INTO payouts (
+            winner_id,
+            telegram_user_id,
+            phase_id,
+            amount_stars,
+            prize_usd,
+            usdt_amount_micro,
+            ton_wallet_address,
+            status
+          )
+          VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8
+          )
+          ON CONFLICT (
+            winner_id
+          )
+          DO UPDATE SET
+            prize_usd =
+              EXCLUDED.prize_usd,
+
+            usdt_amount_micro =
+              EXCLUDED.usdt_amount_micro,
+
+            ton_wallet_address =
+              COALESCE(
+                payouts.ton_wallet_address,
+                EXCLUDED.ton_wallet_address
+              ),
+
+            status =
+              CASE
+                WHEN payouts.status =
+                  'paid'
+                  THEN 'paid'
+
+                WHEN COALESCE(
+                  payouts.ton_wallet_address,
+                  EXCLUDED.ton_wallet_address
+                ) IS NULL
+                  THEN 'waiting_wallet'
+
+                ELSE 'pending'
+              END
+        `,
+        [
+          winner.id,
+
+          entry.telegram_user_id,
+
+          phase.id,
+
+          Math.max(
+            1,
+            Math.round(
+              perWinnerStarsEquiv
+            )
+          ),
+
+          money6(
+            perWinnerUsd
+          ),
+
+          Math.round(
+            perWinnerUsd *
+              1_000_000
+          ),
+
+          userWallet ||
+            null,
+
+          userWallet
+            ? "pending"
+            : "waiting_wallet",
+        ]
+      );
+    }
+
+    await client.query(
+      `
+        UPDATE phases
+        SET
+          status =
+            'finalized',
+
+          winner_count =
+            $2,
+
+          draw_reveal =
+            $3,
+
+          finalized_at =
+            NOW(),
+
+          updated_at =
+            NOW()
+
+        WHERE id = $1
+      `,
+      [
+        phase.id,
+
+        selected.length,
+
+        seedText,
+      ]
+    );
+
+    await audit(
+      client,
+      "phase_finalized",
+      null,
+      phase.id,
+      {
+        grossUsd:
+          money6(
+            grossUsd
+          ),
+
+        totalStars:
+          Number(
+            refreshed.total_stars ||
+              0
+          ),
+
+        requestedWinnerCount,
+
+        actualWinnerCount:
+          selected.length,
+
+        winnerShare:
+          WINNER_SHARE,
+
+        charityShare:
+          CHARITY_SHARE,
+
+        operationsShare:
+          OPERATIONS_SHARE,
+
+        drawCommitHash:
+          refreshed.draw_commit_hash,
+      }
+    );
+
+    await client.query(
+      "COMMIT"
+    );
+
+    return (
+      await pool.query(
+        `
+          SELECT *
+          FROM phases
+          WHERE id = $1
+        `,
+        [
+          phase.id,
+        ]
+      )
+    ).rows[0];
+  } catch (
+    error
+  ) {
+    await client.query(
+      "ROLLBACK"
+    );
+
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function finalizeOldPhases() {
+  const rows =
+    (
+      await pool.query(
+        `
+          SELECT id
+          FROM phases
+
+          WHERE status =
+              'open'
+
+            AND phase_date <
+              $1::date
+
+          ORDER BY
+            phase_date ASC
+
+          LIMIT 20
+        `,
+        [
+          getMoscowDateString(),
+        ]
+      )
+    ).rows;
+
+  for (
+    const row
+    of rows
+  ) {
+    try {
+      await finalizePhase(
+        row.id
+      );
+    } catch (
+      error
+    ) {
+      console.error(
+        `Failed to finalize phase ${row.id}:`,
+        error.message
+      );
+    }
+  }
+}
+
+/* =========================================================
+   PUBLIC API
+========================================================= */
+
+app.get(
+  "/health",
+  async (
+    req,
+    res
+  ) => {
+    let db =
+      false;
+
+    try {
+      await pool.query(
+        "SELECT 1"
+      );
+
+      db =
+        true;
+    } catch {}
+
+    res
+      .status(
+        db
+          ? 200
+          : 503
+      )
+      .json({
+        ok:
+          db,
+
+        service:
+          "Project Z",
+
+        database:
+          db,
+
+        paymentsEnabled:
+          PAYMENTS_ENABLED,
+
+        paymentsReady:
+          PAYMENTS_ENABLED &&
+          missingEnv.length ===
+            0 &&
+          ENTRY_STARS >
+            0,
+
+        missingRequiredEnv:
+          missingEnv,
+
+        entryStars:
+          ENTRY_STARS,
+
+        entryUsdDisplay:
+          ENTRY_USD_DISPLAY,
+
+        starUsdEconomicRate:
+          STAR_USD_RATE,
+
+        split: {
+          winners:
+            WINNER_SHARE,
+
+          charity:
+            CHARITY_SHARE,
+
+          operations:
+            OPERATIONS_SHARE,
+        },
+
+        timezone:
+          MOSCOW_TIME_ZONE,
+
+        moscowDate:
+          getMoscowDateString(),
+
+        tonNetwork:
+          TON_NETWORK,
+
+        tonProofDomain:
+          TON_PROOF_DOMAIN,
+
+        treasuryWalletAddress:
+          TREASURY_WALLET_ADDRESS ||
+          null,
+
+        usdtJettonMaster:
+          USDT_JETTON_MASTER,
+
+        automaticSettlementEnabled:
+          AUTOMATIC_SETTLEMENT_ENABLED,
+      });
+  }
+);
+
+app.get(
+  "/",
+  (
+    req,
+    res
+  ) => {
+    res.json({
+      ok:
+        true,
+
+      service:
+        "Project Z API",
+
+      health:
+        "/health",
+    });
+  }
+);
+
+app.get(
+  "/api/stats",
+  async (
+    req,
+    res,
+    next
+  ) => {
+    try {
+      const phase =
+        await getCurrentPhase();
+
+      const participants =
+        (
+          await pool.query(
+            `
+              SELECT
+                e.telegram_user_id,
+                e.created_at,
+
+                COALESCE(
+                  u.display_name,
+                  'Participant'
+                )
+                  AS display_name
+
+              FROM entries e
+
+              LEFT JOIN users u
+                ON u.telegram_id =
+                  e.telegram_user_id
+
+              WHERE e.phase_id = $1
+
+              ORDER BY
+                e.created_at DESC
+
+              LIMIT 50
+            `,
+            [
+              phase.id,
+            ]
+          )
+        ).rows;
+
+      const totalStars =
+        Number(
+          phase.total_stars ||
+            0
+        );
+
+      const grossUsd =
+        grossUsdFromStars(
+          totalStars
+        );
+
+      const prizePoolUsd =
+        grossUsd *
+        WINNER_SHARE;
+
+      const prizePoolStars =
+        totalStars *
+        WINNER_SHARE;
+
+      res.json({
+        phaseId:
+          Number(
+            phase.id
+          ),
+
+        phaseDate:
+          toDateOnlyString(
+            phase.phase_date
+          ),
+
+        phaseStatus:
+          phase.status,
+
+        participants:
+          Number(
+            phase.entry_count ||
+              participants.length
+          ),
+
+        paidParticipants:
+          Number(
+            phase.paid_entry_count ||
+              0
+          ),
+
+        freeParticipants:
+          Number(
+            phase.free_entry_count ||
+              0
+          ),
+
+        totalStars,
+
+        grossUsd:
+          money6(
+            grossUsd
+          ),
+
+        poolStars:
+          money6(
+            prizePoolStars
+          ),
+
+        poolUsd:
+          money6(
+            prizePoolUsd
+          ),
+
+        charityUsd:
+          money6(
+            grossUsd *
+              CHARITY_SHARE
+          ),
+
+        operationsUsd:
+          money6(
+            grossUsd *
+              OPERATIONS_SHARE
+          ),
+
+        drawCommitHash:
+          phase.draw_commit_hash ||
+          null,
+
+        participantList:
+          participants.map(
+            (
+              participant
+            ) => ({
+              displayName:
+                participant.display_name,
+
+              createdAt:
+                participant.created_at,
+            })
+          ),
+      });
+    } catch (
+      error
+    ) {
+      next(
+        error
+      );
+    }
+  }
+);
+
+app.get(
+  "/api/winners",
+  async (
+    req,
+    res,
+    next
+  ) => {
+    try {
+      const rows =
+        (
+          await pool.query(`
+            SELECT
+              w.id,
+              w.phase_id,
+              w.telegram_user_id,
+              w.rank,
+              w.prize_usd,
+
+              COALESCE(
+                w.prize_stars_equiv,
+                w.prize_stars
+              )
+                AS prize_stars_equiv,
+
+              w.created_at,
+
+              p.phase_date,
+              p.draw_commit_hash,
+              p.draw_reveal,
+
+              COALESCE(
+                u.display_name,
+                'Winner'
+              )
+                AS display_name,
+
+              po.status
+                AS payout_status,
+
+              po.ton_tx_hash
+
+            FROM winners w
+
+            JOIN phases p
+              ON p.id =
+                w.phase_id
+
+            LEFT JOIN users u
+              ON u.telegram_id =
+                w.telegram_user_id
+
+            LEFT JOIN payouts po
+              ON po.winner_id =
+                w.id
+
+            ORDER BY
+              p.phase_date DESC,
+              w.rank ASC
+
+            LIMIT 200
+          `)
+        ).rows;
+
+      res.json({
+        winners:
+          rows.map(
+            (
+              row
+            ) => ({
+              id:
+                Number(
+                  row.id
+                ),
+
+              phaseId:
+                Number(
+                  row.phase_id
+                ),
+
+              phaseDate:
+                toDateOnlyString(
+                  row.phase_date
+                ),
+
+              displayName:
+                row.display_name,
+
+              rank:
+                Number(
+                  row.rank
+                ),
+
+              prizeUsd:
+                Number(
+                  row.prize_usd
+                ),
+
+              prizeStars:
+                Number(
+                  row.prize_stars_equiv
+                ),
+
+              payoutStatus:
+                row.payout_status,
+
+              tonTxHash:
+                row.ton_tx_hash ||
+                null,
+
+              drawCommitHash:
+                row.draw_commit_hash ||
+                null,
+
+              drawReveal:
+                row.draw_reveal ||
+                null,
+            })
+          ),
+      });
+    } catch (
+      error
+    ) {
+      next(
+        error
+      );
+    }
+  }
+);
+/* =========================================================
+   AUTHENTICATED USER API
+========================================================= */
+
+app.post(
+  "/api/user-status",
+  async (
+    req,
+    res,
+    next
+  ) => {
+    const verified =
+      requireTelegramUser(
+        req,
+        res
+      );
+
+    if (!verified) {
+      return;
+    }
+
+    const client =
+      await pool.connect();
+
+    try {
+      await client.query(
+        "BEGIN"
+      );
+
+      await upsertUser(
+        client,
+        verified.user
+      );
+
+      const phase =
+        await getOrCreateCurrentPhase(
+          client
+        );
+
+      const entry =
+        (
+          await client.query(
+            `
+              SELECT *
+              FROM entries
+              WHERE telegram_user_id = $1
+                AND phase_id = $2
+              ORDER BY created_at ASC
+              LIMIT 1
+            `,
+            [
+              verified.user.id,
+              phase.id,
+            ]
+          )
+        ).rows[0];
+
+      const referral =
+        await getOrCreateReferralLink(
+          client,
+          verified.user.id,
+          phase.id
+        );
+
+      const referralProgress =
+        Number(
+          (
+            await client.query(
+              `
+                SELECT
+                  COUNT(*)::int
+                    AS count
+
+                FROM referral_conversions
+
+                WHERE phase_id = $1
+                  AND referrer_id = $2
+              `,
+              [
+                phase.id,
+                verified.user.id,
+              ]
+            )
+          ).rows[0]
+            ?.count ||
+            0
+        );
+
+      const grant =
+        (
+          await client.query(
+            `
+              SELECT
+                status
+
+              FROM free_entry_grants
+
+              WHERE phase_id = $1
+                AND telegram_user_id = $2
+
+              LIMIT 1
+            `,
+            [
+              phase.id,
+              verified.user.id,
+            ]
+          )
+        ).rows[0];
+
+      const userRow =
+        (
+          await client.query(
+            `
+              SELECT
+                ton_wallet_address,
+                ton_wallet_verified_at
+
+              FROM users
+
+              WHERE telegram_id = $1
+            `,
+            [
+              verified.user.id,
+            ]
+          )
+        ).rows[0];
+
+      await client.query(
+        "COMMIT"
+      );
+
+      res.json({
+        telegramUserId:
+          verified.user.id,
+
+        phaseId:
+          Number(
+            phase.id
+          ),
+
+        phaseDate:
+          toDateOnlyString(
+            phase.phase_date
+          ),
+
+        hasEntry:
+          Boolean(
+            entry
+          ),
+
+        entrySource:
+          entry
+            ?.source ||
+          null,
+
+        isFirstPayer:
+          Boolean(
+            entry
+              ?.is_first_payer
+          ),
+
+        referralLink:
+          referral.link,
+
+        referralCode:
+          referral.code,
+
+        referralProgress,
+
+        freeEntryAvailable:
+          grant
+            ?.status ===
+          "available",
+
+        freeEntryStatus:
+          grant
+            ?.status ||
+          null,
+
+        tonWalletAddress:
+          userRow
+            ?.ton_wallet_address ||
+          null,
+
+        tonWalletVerified:
+          Boolean(
+            userRow
+              ?.ton_wallet_verified_at
+          ),
+      });
+    } catch (
+      error
+    ) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      next(
+        error
+      );
+    } finally {
+      client.release();
+    }
+  }
+);
+
+app.post(
+  "/api/create-entry-invoice",
+  paymentLimiter,
+  async (
+    req,
+    res,
+    next
+  ) => {
+    const verified =
+      requireTelegramUser(
+        req,
+        res
+      );
+
+    if (!verified) {
+      return;
+    }
+
+    try {
+      const result =
+        await createEntryInvoice(
+          verified.user
+        );
+
+      res.json(
+        result
+      );
+    } catch (
+      error
+    ) {
+      next(
+        error
+      );
+    }
+  }
+);
+
+app.post(
+  "/api/claim-free-entry",
+  async (
+    req,
+    res,
+    next
+  ) => {
+    const verified =
+      requireTelegramUser(
+        req,
+        res
+      );
+
+    if (!verified) {
+      return;
+    }
+
+    try {
+      res.json(
+        await claimFreeEntry(
+          verified.user
+        )
+      );
+    } catch (
+      error
+    ) {
+      next(
+        error
+      );
+    }
+  }
+);
+
+app.post(
+  "/api/attach-referral",
+  async (
+    req,
+    res,
+    next
+  ) => {
+    const verified =
+      requireTelegramUser(
+        req,
+        res
+      );
+
+    if (!verified) {
+      return;
+    }
+
+    const code =
+      String(
+        req.body
+          ?.code ||
+        ""
+      ).trim();
+
+    if (
+      !/^ref_[A-Za-z0-9_-]+$/.test(
+        code
+      ) ||
+      code.length >
+        120
+    ) {
+      return res
+        .status(
+          400
+        )
+        .json({
+          error:
+            "Invalid referral code.",
+        });
+    }
+
+    const client =
+      await pool.connect();
+
+    try {
+      await client.query(
+        "BEGIN"
+      );
+
+      await upsertUser(
+        client,
+        verified.user
+      );
+
+      const phase =
+        await getOrCreateCurrentPhase(
+          client
+        );
+
+      const link =
+        (
+          await client.query(
+            `
+              SELECT *
+              FROM referral_links
+              WHERE code = $1
+                AND phase_id = $2
+              LIMIT 1
+            `,
+            [
+              code,
+              phase.id,
+            ]
+          )
+        ).rows[0];
+
+      if (!link) {
+        throw new Error(
+          "Referral link is not valid for today's phase"
+        );
+      }
+
+      if (
+        Number(
+          link.referrer_id
+        ) ===
+        Number(
+          verified.user.id
+        )
+      ) {
+        throw new Error(
+          "You cannot refer yourself"
+        );
+      }
+
+      await client.query(
+        `
+          INSERT INTO referral_attachments (
+            phase_id,
+            referrer_id,
+            referred_user_id,
+            referral_link_id
+          )
+          VALUES (
+            $1,
+            $2,
+            $3,
+            $4
+          )
+          ON CONFLICT (
+            referred_user_id,
+            phase_id
+          )
+          DO NOTHING
+        `,
+        [
+          phase.id,
+          link.referrer_id,
+          verified.user.id,
+          link.id,
+        ]
+      );
+
+      await audit(
+        client,
+        "referral_attached",
+        verified.user.id,
+        phase.id,
+        {
+          referrer:
+            Number(
+              link.referrer_id
+            ),
+
+          code,
+        }
+      );
+
+      await client.query(
+        "COMMIT"
+      );
+
+      res.json({
+        ok:
+          true,
+      });
+    } catch (
+      error
+    ) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      next(
+        error
+      );
+    } finally {
+      client.release();
+    }
+  }
+);
+
+/* =========================================================
+   TON CONNECT API
+========================================================= */
+
+app.post(
+  "/api/tonconnect/nonce",
+  proofLimiter,
+  async (
+    req,
+    res,
+    next
+  ) => {
+    const verified =
+      requireTelegramUser(
+        req,
+        res
+      );
+
+    if (!verified) {
+      return;
+    }
+
+    try {
+      const nonce =
+        randomToken(
+          32
+        );
+
+      const expiresAt =
+        new Date(
+          Date.now() +
+            TON_PROOF_TTL_SECONDS *
+              1000
+        );
+
+      await pool.query(
+        `
+          INSERT INTO ton_proof_challenges (
+            telegram_user_id,
+            nonce,
+            domain,
+            expires_at
+          )
+          VALUES (
+            $1,
+            $2,
+            $3,
+            $4
+          )
+        `,
+        [
+          verified.user.id,
+          nonce,
+          TON_PROOF_DOMAIN,
+          expiresAt,
+        ]
+      );
+
+      res.json({
+        nonce,
+
+        expiresAt:
+          expiresAt.toISOString(),
+
+        domain:
+          TON_PROOF_DOMAIN,
+
+        network:
+          TON_NETWORK,
+      });
+    } catch (
+      error
+    ) {
+      next(
+        error
+      );
+    }
+  }
+);
+
+app.post(
+  "/api/tonconnect/verify",
+  proofLimiter,
+  async (
+    req,
+    res,
+    next
+  ) => {
+    const verified =
+      requireTelegramUser(
+        req,
+        res
+      );
+
+    if (!verified) {
+      return;
+    }
+
+    const client =
+      await pool.connect();
+
+    try {
+      const result =
+        await verifyTonProof({
+          telegramUserId:
+            verified.user.id,
+
+          proof:
+            req.body
+              ?.proof,
+
+          address:
+            req.body
+              ?.address,
+
+          walletStateInit:
+            req.body
+              ?.walletStateInit,
+
+          network:
+            req.body
+              ?.network,
+        });
+
+      await client.query(
+        "BEGIN"
+      );
+
+      await upsertUser(
+        client,
+        verified.user
+      );
+
+      await client.query(
+        `
+          UPDATE ton_proof_challenges
+          SET
+            used_at =
+              NOW()
+          WHERE id = $1
+            AND used_at IS NULL
+        `,
+        [
+          result.challengeId,
+        ]
+      );
+
+      await client.query(
+        `
+          UPDATE users
+          SET
+            ton_wallet_address = $2,
+
+            ton_wallet_verified_at =
+              NOW(),
+
+            updated_at =
+              NOW()
+
+          WHERE telegram_id = $1
+        `,
+        [
+          verified.user.id,
+          result.address,
+        ]
+      );
+
+      await client.query(
+        `
+          UPDATE payouts
+          SET
+            ton_wallet_address = $2,
+
+            status =
+              CASE
+                WHEN status =
+                  'waiting_wallet'
+                THEN 'pending'
+                ELSE status
+              END
+
+          WHERE telegram_user_id = $1
+            AND status IN (
+              'waiting_wallet',
+              'pending'
+            )
+        `,
+        [
+          verified.user.id,
+          result.address,
+        ]
+      );
+
+      await audit(
+        client,
+        "ton_wallet_verified",
+        verified.user.id,
+        null,
+        {
+          walletAddress:
+            result.address,
+
+          walletVersion:
+            result.version,
+        }
+      );
+
+      await client.query(
+        "COMMIT"
+      );
+
+      res.json({
+        ok:
+          true,
+
+        walletAddress:
+          result.address,
+
+        walletVersion:
+          result.version,
+      });
+    } catch (
+      error
+    ) {
+      await client
+        .query(
+          "ROLLBACK"
+        )
+        .catch(
+          () => {}
+        );
+
+      next(
+        error
+      );
+    } finally {
+      client.release();
+    }
+  }
+);
+
+/* =========================================================
+   TELEGRAM WEBHOOK
+========================================================= */
+
+app.post(
+  "/telegram/webhook",
+  async (
+    req,
+    res
+  ) => {
+    const secret =
+      String(
+        req.headers[
+          "x-telegram-bot-api-secret-token"
+        ] ||
+          ""
+      );
+
+    if (
+      !TELEGRAM_WEBHOOK_SECRET ||
+      !timingSafeEqualText(
+        secret,
+        TELEGRAM_WEBHOOK_SECRET
+      )
+    ) {
+      return res
+        .status(
+          401
+        )
+        .json({
+          ok:
+            false,
+        });
+    }
+
+    res.json({
+      ok:
+        true,
+    });
+
+    const update =
+      req.body ||
+      {};
+
+    try {
+      if (
+        update.pre_checkout_query
+      ) {
+        await handlePreCheckoutQuery(
+          update.pre_checkout_query
+        );
+
+        return;
+      }
+
+      if (
+        update.message
+          ?.successful_payment
+      ) {
+        await handleSuccessfulPayment(
+          update.message
+        );
+
+        return;
+      }
+    } catch (
+      error
+    ) {
+      console.error(
+        "Webhook processing error:",
+        error.message
+      );
+    }
+  }
+);
+/* =========================================================
+   ADMIN API
+========================================================= */
+
+app.get(
+  "/api/admin/stars-balance",
+  requireAdmin,
+  async (
+    req,
+    res,
+    next
+  ) => {
+    try {
+      const balance =
+        await telegramApi(
+          "getMyStarBalance",
+          {}
+        );
+
+      res.json({
+        ok:
+          true,
+
+        balance,
+      });
+    } catch (
+      error
+    ) {
+      next(
+        error
+      );
+    }
+  }
+);
+
+app.get(
+  "/api/admin/payouts",
+  requireAdmin,
+  async (
+    req,
+    res,
+    next
+  ) => {
+    try {
+      const status =
+        String(
+          req.query
+            ?.status ||
+          ""
+        ).trim();
+
+      const params =
+        [];
+
+      let where =
+        "";
+
+      if (
+        status
+      ) {
+        params.push(
+          status
+        );
+
+        where =
+          `WHERE po.status = $1`;
+      }
+
+      const rows =
+        (
+          await pool.query(
+            `
+              SELECT
+                po.*,
+
+                w.rank,
+
+                p.phase_date,
+
+                COALESCE(
+                  u.display_name,
+                  'Winner'
+                )
+                  AS display_name
+
+              FROM payouts po
+
+              JOIN winners w
+                ON w.id =
+                  po.winner_id
+
+              JOIN phases p
+                ON p.id =
+                  po.phase_id
+
+              LEFT JOIN users u
+                ON u.telegram_id =
+                  po.telegram_user_id
+
+              ${where}
+
+              ORDER BY
+                po.created_at DESC
+
+              LIMIT 500
+            `,
+            params
+          )
+        ).rows;
+
+      res.json({
+        automaticSettlementEnabled:
+          AUTOMATIC_SETTLEMENT_ENABLED,
+
+        settlementAsset:
+          "USDT on TON",
+
+        treasuryWalletAddress:
+          TREASURY_WALLET_ADDRESS ||
+          null,
+
+        usdtJettonMaster:
+          USDT_JETTON_MASTER,
+
+        payouts:
+          rows.map(
+            (
+              row
+            ) => ({
+              id:
+                Number(
+                  row.id
+                ),
+
+              phaseId:
+                Number(
+                  row.phase_id
+                ),
+
+              phaseDate:
+                toDateOnlyString(
+                  row.phase_date
+                ),
+
+              rank:
+                Number(
+                  row.rank
+                ),
+
+              telegramUserId:
+                Number(
+                  row.telegram_user_id
+                ),
+
+              displayName:
+                row.display_name,
+
+              prizeUsd:
+                Number(
+                  row.prize_usd ||
+                    0
+                ),
+
+              usdtAmountMicro:
+                Number(
+                  row.usdt_amount_micro ||
+                    0
+                ),
+
+              tonWalletAddress:
+                row.ton_wallet_address ||
+                null,
+
+              status:
+                row.status,
+
+              tonTxHash:
+                row.ton_tx_hash ||
+                null,
+
+              settlementReference:
+                row.settlement_reference ||
+                null,
+
+              paidAt:
+                row.paid_at ||
+                null,
+            })
+          ),
+      });
+    } catch (
+      error
+    ) {
+      next(
+        error
+      );
+    }
+  }
+);
+
+app.post(
+  "/api/admin/payouts/:id/mark-paid",
+  requireAdmin,
+  async (
+    req,
+    res,
+    next
+  ) => {
+    try {
+      const payoutId =
+        Number(
+          req.params.id
+        );
+
+      const tonTxHash =
+        String(
+          req.body
+            ?.tonTxHash ||
+          ""
+        ).trim();
+
+      const settlementReference =
+        String(
+          req.body
+            ?.settlementReference ||
+          tonTxHash
+        ).trim();
+
+      if (
+        !Number.isSafeInteger(
+          payoutId
+        ) ||
+        payoutId <=
+          0
+      ) {
+        return res
+          .status(
+            400
+          )
+          .json({
+            error:
+              "Invalid payout id.",
+          });
+      }
+
+      if (
+        !tonTxHash ||
+        tonTxHash.length >
+          300
+      ) {
+        return res
+          .status(
+            400
+          )
+          .json({
+            error:
+              "A confirmed TON transaction hash/reference is required.",
+          });
+      }
+
+      const row =
+        (
+          await pool.query(
+            `
+              UPDATE payouts
+
+              SET
+                status =
+                  'paid',
+
+                ton_tx_hash =
+                  $2,
+
+                settlement_reference =
+                  $3,
+
+                paid_at =
+                  NOW(),
+
+                failure_reason =
+                  NULL
+
+              WHERE id =
+                  $1
+
+                AND status <>
+                  'paid'
+
+              RETURNING *
+            `,
+            [
+              payoutId,
+
+              tonTxHash,
+
+              settlementReference,
+            ]
+          )
+        ).rows[0];
+
+      if (
+        !row
+      ) {
+        return res
+          .status(
+            404
+          )
+          .json({
+            error:
+              "Payout not found or already marked paid.",
+          });
+      }
+
+      res.json({
+        ok:
+          true,
+
+        payout:
+          row,
+      });
+    } catch (
+      error
+    ) {
+      next(
+        error
+      );
+    }
+  }
+);
+
+app.post(
+  "/api/admin/payouts/:id/mark-failed",
+  requireAdmin,
+  async (
+    req,
+    res,
+    next
+  ) => {
+    try {
+      const payoutId =
+        Number(
+          req.params.id
+        );
+
+      const reason =
+        String(
+          req.body
+            ?.reason ||
+          "Settlement failed"
+        ).slice(
+          0,
+          1000
+        );
+
+      const row =
+        (
+          await pool.query(
+            `
+              UPDATE payouts
+
+              SET
+                status =
+                  'failed',
+
+                failure_reason =
+                  $2
+
+              WHERE id =
+                  $1
+
+                AND status <>
+                  'paid'
+
+              RETURNING *
+            `,
+            [
+              payoutId,
+
+              reason,
+            ]
+          )
+        ).rows[0];
+
+      if (
+        !row
+      ) {
+        return res
+          .status(
+            404
+          )
+          .json({
+            error:
+              "Payout not found.",
+          });
+      }
+
+      res.json({
+        ok:
+          true,
+
+        payout:
+          row,
+      });
+    } catch (
+      error
+    ) {
+      next(
+        error
+      );
+    }
+  }
+);
+
+app.post(
+  "/api/admin/finalize/:phaseId",
+  requireAdmin,
+  async (
+    req,
+    res,
+    next
+  ) => {
+    try {
+      const phaseId =
+        Number(
+          req.params.phaseId
+        );
+
+      if (
+        !Number.isSafeInteger(
+          phaseId
+        ) ||
+        phaseId <=
+          0
+      ) {
+        return res
+          .status(
+            400
+          )
+          .json({
+            error:
+              "Invalid phase id.",
+          });
+      }
+
+      const phase =
+        await finalizePhase(
+          phaseId
+        );
+
+      res.json({
+        ok:
+          true,
+
+        phase,
+      });
+    } catch (
+      error
+    ) {
+      next(
+        error
+      );
+    }
+  }
+);
+
+/* =========================================================
+   ERROR HANDLING
+========================================================= */
+
+app.use(
+  (
+    req,
+    res
+  ) => {
+    res
+      .status(
+        404
+      )
+      .json({
+        error:
+          "Not found.",
+      });
+  }
+);
+
+app.use(
+  (
+    error,
+    req,
+    res,
+    next
+  ) => {
+    console.error(
+      "Request error:",
+      error.message
+    );
+
+    const message =
+      String(
+        error.message ||
+          "Internal server error"
+      );
+
+    const clientErrorPatterns =
+      [
+        /already/i,
+        /invalid/i,
+        /expired/i,
+        /not found/i,
+        /not open/i,
+        /cannot/i,
+        /no free entry/i,
+        /wrong/i,
+        /unsupported wallet/i,
+        /phase has ended/i,
+      ];
+
+    const isClientError =
+      clientErrorPatterns.some(
+        (
+          regex
+        ) =>
+          regex.test(
+            message
+          )
+      );
+
+    res
+      .status(
+        isClientError
+          ? 400
+          : 500
+      )
+      .json({
+        error:
+          isClientError
+            ? message
+            : "Internal server error.",
+      });
+  }
+);
+
+/* =========================================================
+   BACKGROUND WORKERS
+========================================================= */
+
+let workersStarted =
+  false;
+
+function startWorkers() {
+  if (
+    workersStarted
+  ) {
+    return;
+  }
+
+  workersStarted =
+    true;
+
+  setInterval(
+    () => {
+      finalizeOldPhases()
+        .catch(
+          (
+            error
+          ) => {
+            console.error(
+              "Finalize worker:",
+              error.message
+            );
+          }
+        );
+    },
+    60_000
+  ).unref();
+
+  setInterval(
+    () => {
+      processPendingRefunds()
+        .catch(
+          (
+            error
+          ) => {
+            console.error(
+              "Refund worker:",
+              error.message
+            );
+          }
+        );
+    },
+    60_000
+  ).unref();
+
+  setInterval(
+    () => {
+      pool.query(
+        `
+          DELETE FROM ton_proof_challenges
+          WHERE expires_at <
+            NOW() -
+            INTERVAL '1 day'
+        `
+      ).catch(
+        () => {}
+      );
+    },
+    60 *
+      60_000
+  ).unref();
+
+  console.log(
+    "Background workers started."
+  );
+}
+
+/* =========================================================
+   STARTUP / SHUTDOWN
 ========================================================= */
 
 async function start() {
-  try {
-    await verifyTreasuryWallet();
+  if (
+    !DATABASE_URL
+  ) {
+    throw new Error(
+      "DATABASE_URL missing"
+    );
+  }
 
-    await initializeDatabase();
+  await initDb();
 
-    startWorkers();
+  await getCurrentPhase();
 
+  await finalizeOldPhases();
+
+  startWorkers();
+
+  const server =
     app.listen(
       PORT,
-      '0.0.0.0',
-
+      "0.0.0.0",
       async () => {
         console.log(
           `Project Z running on 0.0.0.0:${PORT}`
@@ -7174,7 +6320,11 @@ async function start() {
         );
 
         console.log(
-          `Payments ready: ${paymentsReady}`
+          `Payments ready: ${
+            PAYMENTS_ENABLED &&
+            missingEnv.length ===
+              0
+          }`
         );
 
         console.log(
@@ -7186,103 +6336,77 @@ async function start() {
         );
 
         console.log(
-          `Treasury configured: ${treasuryState.configured}`
+          "Settlement asset: USDT on TON"
         );
 
         console.log(
-          `Treasury verified: ${treasuryState.verified}`
+          `Treasury public address configured: ${Boolean(
+            TREASURY_WALLET_ADDRESS
+          )}`
         );
 
         console.log(
-          'Settlement asset: USDT on TON'
+          "Automatic on-chain settlement: DISABLED"
         );
 
-        console.log(
-          'Automatic on-chain settlement: DISABLED'
-        );
-
-        if (
-          missingEnv.length
-        ) {
-          console.log(
-            'Missing environment variables:',
-            missingEnv.join(
-              ', '
-            )
-          );
-        }
-
-        await configureTelegramWebhook();
+        await ensureWebhook();
       }
     );
-  } catch (
-    error
-  ) {
-    console.error(
-      'FATAL STARTUP ERROR:',
-      error
-    );
 
-    process.exit(
-      1
-    );
-  }
+  const shutdown =
+    async (
+      signal
+    ) => {
+      console.log(
+        `Received ${signal}; shutting down.`
+      );
+
+      server.close(
+        async () => {
+          await pool
+            .end()
+            .catch(
+              () => {}
+            );
+
+          process.exit(
+            0
+          );
+        }
+      );
+
+      setTimeout(
+        () =>
+          process.exit(
+            1
+          ),
+        10_000
+      ).unref();
+    };
+
+  process.on(
+    "SIGTERM",
+    () =>
+      shutdown(
+        "SIGTERM"
+      )
+  );
+
+  process.on(
+    "SIGINT",
+    () =>
+      shutdown(
+        "SIGINT"
+      )
+  );
 }
 
-/* =========================================================
-   ERRORS
-========================================================= */
-
-app.use(
-  (
-    error,
-    _req,
-    res,
-    _next
-  ) => {
-    console.error(
-      'Unhandled Express error:',
-      error
-    );
-
-    if (
-      res.headersSent
-    ) {
-      return;
-    }
-
-    return res
-      .status(
-        500
-      )
-      .json({
-        error:
-          'internal_error'
-      });
-  }
-);
-
-process.on(
-  'unhandledRejection',
-
+start().catch(
   (
     error
   ) => {
     console.error(
-      'Unhandled rejection:',
-      error
-    );
-  }
-);
-
-process.on(
-  'uncaughtException',
-
-  (
-    error
-  ) => {
-    console.error(
-      'Uncaught exception:',
+      "Fatal startup error:",
       error
     );
 
@@ -7291,5 +6415,3 @@ process.on(
     );
   }
 );
-
-start();
