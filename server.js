@@ -1756,71 +1756,319 @@ async function autoFinalizeExpiredPhases() {
       }
     }
   } catch (error) {
-    console.error('Auto-finalize scan failed:', error);
+    console.error(
+      'Auto-finalize scan failed:',
+      error
+    );
   } finally {
     client.release();
   }
 }
 
-async function configureTelegramWebhook() {
-  if (!BOT_TOKEN || !WEBHOOK_SECRET || !APP_URL) {
-    console.log('Webhook setup skipped: missing Telegram configuration.');
+
+/* =========================================================
+   PAYOUT WORKER
+   ========================================================= */
+
+const PAYOUT_PROCESS_INTERVAL_MS = 30 * 1000;
+const PAYOUT_STALE_AFTER_MINUTES = 15;
+
+let payoutWorkerRunning = false;
+
+async function processPendingPayouts() {
+  if (payoutWorkerRunning) {
     return;
   }
 
-  const webhookUrl = `${APP_URL.replace(/\/$/, '')}/telegram/webhook`;
+  payoutWorkerRunning = true;
+
+  const client = await pool.connect();
 
   try {
-    const result = await telegramApi('setWebhook', {
-      url: webhookUrl,
-      secret_token: WEBHOOK_SECRET,
-      allowed_updates: ['message', 'pre_checkout_query'],
-      drop_pending_updates: false
-    });
-    console.log('Telegram webhook configured:', result);
+    /*
+     * Recover payouts that were interrupted.
+     *
+     * If the server crashes while a payout is processing,
+     * return it to pending after 15 minutes.
+     */
+    await client.query(
+      `UPDATE payouts
+       SET status = 'pending',
+           processing_at = NULL,
+           failure_reason = 'Recovered from interrupted processing'
+       WHERE status = 'processing'
+         AND processing_at IS NOT NULL
+         AND processing_at < NOW() - ($1 * INTERVAL '1 minute')`,
+      [PAYOUT_STALE_AFTER_MINUTES]
+    );
+
+    /*
+     * Start a transaction and lock pending payouts.
+     *
+     * SKIP LOCKED prevents two worker executions
+     * from processing the same payout simultaneously.
+     */
+    await client.query('BEGIN');
+
+    const result = await client.query(
+      `SELECT
+         p.id,
+         p.phase_id,
+         p.winner_id,
+         p.telegram_user_id,
+         p.amount_stars,
+         p.status,
+         w.rank,
+         w.prize_stars
+       FROM payouts p
+       INNER JOIN winners w
+         ON w.id = p.winner_id
+       WHERE p.status = 'pending'
+       ORDER BY p.id ASC
+       LIMIT 25
+       FOR UPDATE OF p SKIP LOCKED`
+    );
+
+    if (!result.rows.length) {
+      await client.query('COMMIT');
+      return;
+    }
+
+    /*
+     * Mark the selected payouts as processing.
+     */
+    const payoutIds = result.rows.map(
+      (row) => row.id
+    );
+
+    await client.query(
+      `UPDATE payouts
+       SET status = 'processing',
+           processing_at = NOW(),
+           failure_reason = NULL
+       WHERE id = ANY($1::bigint[])`,
+      [payoutIds]
+    );
+
+    await client.query('COMMIT');
+
+    /*
+     * IMPORTANT:
+     *
+     * This worker does NOT falsely mark payouts as paid.
+     *
+     * Telegram Bot API does not provide a general
+     * sendStars(user_id, amount) method for arbitrary
+     * direct Stars transfers from a bot balance.
+     *
+     * Therefore these payouts remain "processing"
+     * until a real settlement mechanism is connected.
+     */
+    for (const payout of result.rows) {
+      console.log(
+        'Payout awaiting settlement:',
+        {
+          payoutId: payout.id,
+          phaseId: payout.phase_id,
+          winnerId: payout.winner_id,
+          telegramUserId: payout.telegram_user_id,
+          amountStars: payout.amount_stars,
+          rank: payout.rank
+        }
+      );
+    }
+
   } catch (error) {
-    console.error('Webhook configuration failed:', error.message);
+    try {
+      await client.query('ROLLBACK');
+    } catch (_) {
+      // Ignore rollback errors.
+    }
+
+    console.error(
+      'Payout worker error:',
+      error
+    );
+
+  } finally {
+    client.release();
+    payoutWorkerRunning = false;
   }
 }
+
+
+function startPayoutWorker() {
+  /*
+   * Run immediately after startup.
+   */
+  processPendingPayouts().catch((error) => {
+    console.error(
+      'Initial payout worker error:',
+      error
+    );
+  });
+
+  /*
+   * Then run every 30 seconds.
+   */
+  setInterval(() => {
+    processPendingPayouts().catch((error) => {
+      console.error(
+        'Payout worker interval error:',
+        error
+      );
+    });
+  }, PAYOUT_PROCESS_INTERVAL_MS);
+
+  console.log(
+    `Payout worker started. Interval: ${
+      PAYOUT_PROCESS_INTERVAL_MS / 1000
+    }s`
+  );
+}
+
+
+async function configureTelegramWebhook() {
+  if (!BOT_TOKEN || !WEBHOOK_SECRET || !APP_URL) {
+    console.log(
+      'Webhook setup skipped: missing Telegram configuration.'
+    );
+    return;
+  }
+
+  const webhookUrl =
+    `${APP_URL.replace(/\/$/, '')}/telegram/webhook`;
+
+  try {
+    const result = await telegramApi(
+      'setWebhook',
+      {
+        url: webhookUrl,
+        secret_token: WEBHOOK_SECRET,
+        allowed_updates: [
+          'message',
+          'pre_checkout_query'
+        ],
+        drop_pending_updates: false
+      }
+    );
+
+    console.log(
+      'Telegram webhook configured:',
+      result
+    );
+
+  } catch (error) {
+    console.error(
+      'Webhook configuration failed:',
+      error.message
+    );
+  }
+}
+
 
 async function start() {
   try {
     await initializeDatabase();
 
+    /*
+     * Start payout worker.
+     */
+    startPayoutWorker();
+
+    /*
+     * Auto-finalize expired Moscow phases
+     * every 60 seconds.
+     */
     setInterval(() => {
       autoFinalizeExpiredPhases().catch((error) => {
-        console.error('Auto-finalize interval error:', error);
+        console.error(
+          'Auto-finalize interval error:',
+          error
+        );
       });
     }, 60 * 1000);
 
+    /*
+     * Run auto-finalization immediately
+     * when the server starts.
+     */
     autoFinalizeExpiredPhases().catch((error) => {
-      console.error('Initial auto-finalize error:', error);
+      console.error(
+        'Initial auto-finalize error:',
+        error
+      );
     });
 
-    app.listen(PORT, '0.0.0.0', async () => {
-      console.log(`Project Z running on 0.0.0.0:${PORT}`);
-      console.log(`Moscow phase date: ${getMoscowDateString()}`);
-      console.log(`Payments ready: ${paymentsReady}`);
-      if (missingEnv.length) {
-        console.log('Missing environment variables:', missingEnv.join(', '));
+    app.listen(
+      PORT,
+      '0.0.0.0',
+      async () => {
+        console.log(
+          `Project Z running on 0.0.0.0:${PORT}`
+        );
+
+        console.log(
+          `Moscow phase date: ${getMoscowDateString()}`
+        );
+
+        console.log(
+          `Payments ready: ${paymentsReady}`
+        );
+
+        if (missingEnv.length) {
+          console.log(
+            'Missing environment variables:',
+            missingEnv.join(', ')
+          );
+        }
+
+        if (
+          PAYMENTS_ENABLED &&
+          ENTRY_STARS <= 0
+        ) {
+          console.log(
+            'WARNING: ENTRY_STARS must be a positive integer.'
+          );
+        }
+
+        await configureTelegramWebhook();
       }
-      if (PAYMENTS_ENABLED && ENTRY_STARS <= 0) {
-        console.log('WARNING: ENTRY_STARS must be a positive integer.');
-      }
-      await configureTelegramWebhook();
-    });
+    );
+
   } catch (error) {
-    console.error('FATAL STARTUP ERROR:', error);
+    console.error(
+      'FATAL STARTUP ERROR:',
+      error
+    );
+
     process.exit(1);
   }
 }
 
-process.on('unhandledRejection', (error) => {
-  console.error('Unhandled rejection:', error);
-});
 
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught exception:', error);
-});
+/* =========================================================
+   ERROR HANDLERS & START
+   ========================================================= */
+
+process.on(
+  'unhandledRejection',
+  (error) => {
+    console.error(
+      'Unhandled rejection:',
+      error
+    );
+  }
+);
+
+process.on(
+  'uncaughtException',
+  (error) => {
+    console.error(
+      'Uncaught exception:',
+      error
+    );
+  }
+);
 
 start();
