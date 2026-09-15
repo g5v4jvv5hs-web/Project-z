@@ -880,6 +880,57 @@ function showHome(){
 /* =========================================================
    PLAY
 /* =========================================================
+function showPlay(){
+  setNav("play");
+  document.getElementById("app").innerHTML = `
+    <div class="header">
+      <div class="logo">PROJECT <span>Z</span></div>
+      <div class="badge">PLAY</div>
+    </div>
+    <main class="page">
+      <button class="back" onclick="showHome()">
+        ← BACK
+      </button>
+      <div class="eyebrow">
+        DAILY PHASE
+      </div>
+      <div class="title">
+        CHOOSE YOUR<br>
+        <span>ENTRY</span>
+      </div>
+      <div class="subtitle">
+        One daily entry costs $2.
+        The actual prize pool starts from zero and increases
+        only from real completed entries.
+      </div>
+      <div class="card">
+        <div class="pool-label">
+          DAILY ENTRY
+        </div>
+        <div class="price">
+          $2
+        </div>
+        <div class="info">
+          The first real participant of a phase is guaranteed
+          to be included among that phase's winners, subject
+          to the published rules and applicable eligibility
+          requirements.
+        </div>
+        <button class="primary" onclick="showEntry()">
+          CONTINUE
+        </button>
+        <button class="secondary" onclick="showHome()">
+          BACK
+        </button>
+      </div>
+      <div class="notice">
+        Payment is not connected in this version.
+        No money is charged by this demo.
+      </div>
+    </main>
+    ${navHTML("play")}
+  `;
+}
    PLAY
 ========================================================= */
 function showPlay(){
