@@ -609,6 +609,29 @@ async function createEntryInvoice(userId, phaseId) {
 /* =========================================================
    TON PROOF CHALLENGE API
 ========================================================= */
+async function createEntryInvoice(userId, phaseId) {
+  const nonce = crypto.randomBytes(16).toString('hex');
+  const payload = `pz_entry:${phaseId}:${userId}:${nonce}`;
+
+  const result = await telegramApi('createInvoiceLink', {
+    title: 'Project Z Entry',
+    description: 'Daily Project Z entry',
+    payload,
+    currency: 'XTR',
+    prices: [
+      {
+        label: 'Project Z Entry',
+        amount: ENTRY_STARS
+      }
+    ]
+  });
+
+  return { link: result, payload };
+}
+
+/* =========================================================
+   TON PROOF CHALLENGE API
+========================================================= */
 
 app.post('/api/tonconnect/nonce', async (req, res) => {
   const client = await pool.connect();
@@ -638,8 +661,7 @@ app.post('/api/tonconnect/nonce', async (req, res) => {
 
     const nonce = createTonProofNonce();
     const domain = getTonProofDomain();
-    const expirationSeconds =
-      getTonProofExpirationSeconds();
+    const expirationSeconds = getTonProofExpirationSeconds();
 
     const expiresAt = new Date(
       Date.now() + expirationSeconds * 1000
@@ -701,8 +723,7 @@ app.post('/api/tonconnect/nonce', async (req, res) => {
 
     return res.status(500).json({
       ok: false,
-      error:
-        'Failed to create TON Proof challenge'
+      error: 'Failed to create TON Proof challenge'
     });
 
   } finally {
@@ -712,7 +733,7 @@ app.post('/api/tonconnect/nonce', async (req, res) => {
 
 
 /* =========================================================
-   TON PROOF VERIFICATION HELPERS
+   TON PROOF VERIFICATION
 ========================================================= */
 
 function sha256(buffer) {
@@ -789,9 +810,7 @@ function buildTonProofDigest(address, proof) {
 }
 
 
-async function extractTonWalletPublicKey(
-  stateInit
-) {
+async function extractTonWalletPublicKey(stateInit) {
   try {
     const {
       WalletContractV1R1,
@@ -952,32 +971,28 @@ app.post(
       if (!initData) {
         return res.status(400).json({
           ok: false,
-          error:
-            'Missing Telegram initData'
+          error: 'Missing Telegram initData'
         });
       }
 
       if (!proof) {
         return res.status(400).json({
           ok: false,
-          error:
-            'Missing TON Proof'
+          error: 'Missing TON Proof'
         });
       }
 
       if (!addressString) {
         return res.status(400).json({
           ok: false,
-          error:
-            'Missing TON wallet address'
+          error: 'Missing TON wallet address'
         });
       }
 
       if (!walletStateInit) {
         return res.status(400).json({
           ok: false,
-          error:
-            'Missing walletStateInit'
+          error: 'Missing walletStateInit'
         });
       }
 
@@ -995,17 +1010,13 @@ app.post(
       if (!telegramUser?.id) {
         return res.status(401).json({
           ok: false,
-          error:
-            'Invalid Telegram initData'
+          error: 'Invalid Telegram initData'
         });
       }
 
       if (
-        typeof proof.timestamp !==
-          'number' ||
-        !Number.isFinite(
-          proof.timestamp
-        )
+        typeof proof.timestamp !== 'number' ||
+        !Number.isFinite(proof.timestamp)
       ) {
         return res.status(400).json({
           ok: false,
@@ -1016,37 +1027,26 @@ app.post(
 
       if (
         !proof.domain ||
-        typeof proof.domain.value !==
-          'string' ||
-        typeof proof.domain.lengthBytes !==
-          'number'
+        typeof proof.domain.value !== 'string' ||
+        typeof proof.domain.lengthBytes !== 'number'
       ) {
         return res.status(400).json({
           ok: false,
-          error:
-            'Invalid TON Proof domain'
+          error: 'Invalid TON Proof domain'
         });
       }
 
-      if (
-        typeof proof.payload !==
-        'string'
-      ) {
+      if (typeof proof.payload !== 'string') {
         return res.status(400).json({
           ok: false,
-          error:
-            'Invalid TON Proof payload'
+          error: 'Invalid TON Proof payload'
         });
       }
 
-      if (
-        typeof proof.signature !==
-        'string'
-      ) {
+      if (typeof proof.signature !== 'string') {
         return res.status(400).json({
           ok: false,
-          error:
-            'Invalid TON Proof signature'
+          error: 'Invalid TON Proof signature'
         });
       }
 
@@ -1069,8 +1069,7 @@ app.post(
           Date.now() / 1000
         );
 
-      const maxAge =
-        15 * 60;
+      const maxAge = 15 * 60;
 
       if (
         Math.abs(
@@ -1080,8 +1079,7 @@ app.post(
       ) {
         return res.status(401).json({
           ok: false,
-          error:
-            'TON Proof expired'
+          error: 'TON Proof expired'
         });
       }
 
@@ -1108,8 +1106,7 @@ app.post(
         );
 
       if (
-        challengeResult.rowCount ===
-        0
+        challengeResult.rowCount === 0
       ) {
         return res.status(401).json({
           ok: false,
@@ -1206,10 +1203,7 @@ app.post(
           'base64'
         );
 
-      if (
-        signature.length !==
-        64
-      ) {
+      if (signature.length !== 64) {
         return res.status(401).json({
           ok: false,
           error:
@@ -1227,9 +1221,7 @@ app.post(
                 '302a300506032b6570032100',
                 'hex'
               ),
-              Buffer.from(
-                publicKey
-              )
+              Buffer.from(publicKey)
             ]),
             format: 'der',
             type: 'spki'
@@ -1257,8 +1249,7 @@ app.post(
         );
 
       if (
-        consumeResult.rowCount ===
-        0
+        consumeResult.rowCount === 0
       ) {
         return res.status(409).json({
           ok: false,
@@ -1324,103 +1315,7 @@ app.post(
     }
   }
 );
-/* =========================================================
-   TON PROOF CHALLENGE API
-========================================================= */
 
-app.post('/api/tonconnect/nonce', async (req, res) => {
-  const client = await pool.connect();
-
-  try {
-    const initData = req.body?.initData;
-
-    if (!initData) {
-      return res.status(400).json({
-        ok: false,
-        error: 'Missing Telegram initData'
-      });
-    }
-
-    const telegramUser = verifyInitData(initData);
-
-    if (!telegramUser?.id) {
-      return res.status(401).json({
-        ok: false,
-        error: 'Invalid Telegram initData'
-      });
-    }
-
-    await client.query('BEGIN');
-
-    const user = await ensureUser(client, telegramUser);
-
-    const nonce = createTonProofNonce();
-    const domain = getTonProofDomain();
-    const expirationSeconds = getTonProofExpirationSeconds();
-
-    const expiresAt = new Date(
-      Date.now() + expirationSeconds * 1000
-    );
-
-    // Remove old unused challenges for this Telegram user.
-    await client.query(
-      `DELETE FROM ton_proof_challenges
-       WHERE telegram_user_id = $1
-         AND used_at IS NULL`,
-      [telegramUser.id]
-    );
-
-    await client.query(
-      `INSERT INTO ton_proof_challenges
-       (
-         telegram_user_id,
-         nonce,
-         domain,
-         expires_at
-       )
-       VALUES ($1, $2, $3, $4)`,
-      [
-        telegramUser.id,
-        nonce,
-        domain,
-        expiresAt
-      ]
-    );
-
-    await audit(
-      client,
-      'ton_proof_challenge_created',
-      telegramUser.id,
-      null,
-      {
-        domain,
-        expiresAt: expiresAt.toISOString()
-      }
-    );
-
-    await client.query('COMMIT');
-
-    return res.json({
-      ok: true,
-      nonce,
-      domain,
-      expiresAt: expiresAt.toISOString()
-    });
-  } catch (error) {
-    try {
-      await client.query('ROLLBACK');
-    } catch {}
-
-    console.error('TON Proof nonce error:', error);
-
-    return res.status(500).json({
-      ok: false,
-      error: 'Failed to create TON Proof challenge'
-    });
-  } finally {
-    client.release();
-  }
-});
 /* =========================================================
    ROUTES
    ========================================================= */
