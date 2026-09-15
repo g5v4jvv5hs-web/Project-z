@@ -74,7 +74,6 @@ app.use('/api/', apiLimiter);
 /* =========================================================
    HELPERS
    ========================================================= */
-
 function safeJson(value) {
   try {
     return JSON.stringify(value ?? null);
@@ -82,7 +81,6 @@ function safeJson(value) {
     return null;
   }
 }
-
 async function audit(client, eventType, actorTelegramId = null, phaseId = null, payload = null) {
   await client.query(
     `INSERT INTO audit_logs (event_type, actor_telegram_id, phase_id, payload)
@@ -90,7 +88,6 @@ async function audit(client, eventType, actorTelegramId = null, phaseId = null, 
     [eventType, actorTelegramId, phaseId, safeJson(payload)]
   );
 }
-
 function getMoscowDateString(date = new Date()) {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: MOSCOW_TIME_ZONE,
@@ -99,7 +96,6 @@ function getMoscowDateString(date = new Date()) {
     day: '2-digit'
   }).format(date);
 }
-
 /**
  * Normalize a value coming from PostgreSQL (DATE columns may be returned
  * as JS Date or as a string depending on driver/version) into a
@@ -111,7 +107,32 @@ function toDateOnlyString(value) {
   if (value instanceof Date) return getMoscowDateString(value);
   return String(value).slice(0, 10);
 }
-
+/* =========================================================
+   TON PROOF HELPERS
+========================================================= */
+function createTonProofNonce() {
+  return crypto.randomBytes(32).toString('hex');
+}
+function getTonProofDomain() {
+  try {
+    return new URL(APP_URL).host;
+  } catch {
+    return APP_URL;
+  }
+}
+function getTonProofExpirationSeconds() {
+  return 10 * 60;
+}
+function normalizeTonAddress(address) {
+  if (typeof address !== 'string') {
+    return null;
+  }
+  const value = address.trim();
+  if (!value) {
+    return null;
+  }
+  return value;
+}
 /* =========================================================
    TELEGRAM INIT DATA (official HMAC-SHA256)
    ========================================================= */
