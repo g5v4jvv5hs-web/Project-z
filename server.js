@@ -203,7 +203,10 @@ const ADMIN_SECRET =
   strEnv(
     "ADMIN_SECRET"
   );
-
+const SUPPORT_ADMIN_CHAT_ID =
+  strEnv(
+    "SUPPORT_ADMIN_CHAT_ID"
+  );
 
 const MOSCOW_TIME_ZONE =
   strEnv(
@@ -1008,6 +1011,20 @@ const proofLimiter =
     legacyHeaders:
       false,
   });
+const supportLimiter =
+  rateLimit({
+    windowMs:
+      60_000,
+
+    max:
+      8,
+
+    standardHeaders:
+      true,
+
+    legacyHeaders:
+      false,
+  });
 
 
 /* =========================================================
@@ -1454,7 +1471,108 @@ function requireTelegramUser(
 /* =========================================================
    TELEGRAM BOT API
 ========================================================= */
+async function createSupportTicket(
+  telegramUser,
+  messageText
+) {
+  if (
+    !SUPPORT_ADMIN_CHAT_ID
+  ) {
+    throw new Error(
+      "SUPPORT_ADMIN_CHAT_ID is not configured"
+    );
+  }
 
+  const telegramUserId =
+    Number(
+      telegramUser?.id
+    );
+
+  if (
+    !Number.isSafeInteger(
+      telegramUserId
+    )
+  ) {
+    throw new Error(
+      "Invalid Telegram user"
+    );
+  }
+
+  const cleanText =
+    String(
+      messageText || ""
+    )
+      .trim()
+      .slice(
+        0,
+        2000
+      );
+
+  if (
+    cleanText.length <
+    3
+  ) {
+    throw new Error(
+      "Support message is too short"
+    );
+  }
+
+  const inserted =
+    await pool.query(
+      `
+        INSERT INTO support_messages (
+          telegram_user_id,
+          message_text,
+          status
+        )
+        VALUES (
+          $1,
+          $2,
+          'open'
+        )
+        RETURNING id
+      `,
+      [
+        telegramUserId,
+        cleanText,
+      ]
+    );
+
+  const ticketId =
+    inserted.rows[0].id;
+
+  const adminMessage =
+    await telegramApi(
+      "sendMessage",
+      {
+        chat_id:
+          SUPPORT_ADMIN_CHAT_ID,
+
+        text:
+          `🆘 PROJECT Z SUPPORT\n\n` +
+          `Ticket #${ticketId}\n\n` +
+          `${cleanText}\n\n` +
+          `Reply directly to this message to answer the user through the Project Z bot.`,
+      }
+    );
+
+  await pool.query(
+    `
+      UPDATE support_messages
+      SET
+        admin_notification_message_id = $1
+      WHERE id = $2
+    `,
+    [
+      adminMessage.message_id,
+      ticketId,
+    ]
+  );
+
+  return {
+    ticketId,
+  };
+}
 async function telegramApi(
   method,
   body = {}
@@ -2240,7 +2358,41 @@ async function initDb() {
             type
           )
         );
+  
+CREATE TABLE IF NOT EXISTS support_messages (
+  id BIGSERIAL PRIMARY KEY,
 
+  telegram_user_id
+    BIGINT
+    NOT NULL,
+
+  message_text
+    TEXT
+    NOT NULL,
+
+  admin_notification_message_id
+    BIGINT
+    UNIQUE,
+
+  bot_reply_message_id
+    BIGINT,
+
+  admin_reply_text
+    TEXT,
+
+  status
+    TEXT
+    NOT NULL
+    DEFAULT 'open',
+
+  created_at
+    TIMESTAMPTZ
+    NOT NULL
+    DEFAULT NOW(),
+
+  replied_at
+    TIMESTAMPTZ
+);
 
         CREATE TABLE IF NOT EXISTS audit_logs (
           id BIGSERIAL PRIMARY KEY,
@@ -2475,6 +2627,17 @@ async function initDb() {
             telegram_user_id,
             expires_at
           );
+          CREATE INDEX IF NOT EXISTS
+  idx_support_user
+  ON support_messages(
+    telegram_user_id
+  );
+
+CREATE INDEX IF NOT EXISTS
+  idx_support_status
+  ON support_messages(
+    status
+  );
 
         CREATE UNIQUE INDEX IF NOT EXISTS
           idx_entries_unique_payment
