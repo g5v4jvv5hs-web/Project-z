@@ -461,7 +461,10 @@ let projectData = {
 
     projectData.pool =
       Number(data.poolUsd || 0);
-
+projectData.participants =
+  Array.isArray(data.participantList)
+    ? data.participantList
+    : [];
   }catch(error){
     console.error(
       "Project data loading error:",
