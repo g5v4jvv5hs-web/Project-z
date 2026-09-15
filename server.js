@@ -583,6 +583,748 @@ async function getOrCreateReferralLink(client, userId, phase) {
    INVOICE (Telegram Stars)
    ========================================================= */
 /* =========================================================
+   INVOICE (Telegram Stars)
+========================================================= */
+
+async function createEntryInvoice(userId, phaseId) {
+  const nonce = crypto.randomBytes(16).toString('hex');
+  const payload = `pz_entry:${phaseId}:${userId}:${nonce}`;
+
+  const result = await telegramApi('createInvoiceLink', {
+    title: 'Project Z Entry',
+    description: 'Daily Project Z entry',
+    payload,
+    currency: 'XTR',
+    prices: [
+      {
+        label: 'Project Z Entry',
+        amount: ENTRY_STARS
+      }
+    ]
+  });
+
+  return { link: result, payload };
+}
+
+/* =========================================================
+   TON PROOF CHALLENGE API
+========================================================= */
+
+app.post('/api/tonconnect/nonce', async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const initData = req.body?.initData;
+
+    if (!initData) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing Telegram initData'
+      });
+    }
+
+    const telegramUser = verifyInitData(initData);
+
+    if (!telegramUser?.id) {
+      return res.status(401).json({
+        ok: false,
+        error: 'Invalid Telegram initData'
+      });
+    }
+
+    await client.query('BEGIN');
+
+    await ensureUser(client, telegramUser);
+
+    const nonce = createTonProofNonce();
+    const domain = getTonProofDomain();
+    const expirationSeconds =
+      getTonProofExpirationSeconds();
+
+    const expiresAt = new Date(
+      Date.now() + expirationSeconds * 1000
+    );
+
+    await client.query(
+      `DELETE FROM ton_proof_challenges
+       WHERE telegram_user_id = $1
+         AND used_at IS NULL`,
+      [telegramUser.id]
+    );
+
+    await client.query(
+      `INSERT INTO ton_proof_challenges
+       (
+         telegram_user_id,
+         nonce,
+         domain,
+         expires_at
+       )
+       VALUES ($1, $2, $3, $4)`,
+      [
+        telegramUser.id,
+        nonce,
+        domain,
+        expiresAt
+      ]
+    );
+
+    await audit(
+      client,
+      'ton_proof_challenge_created',
+      telegramUser.id,
+      null,
+      {
+        domain,
+        expiresAt: expiresAt.toISOString()
+      }
+    );
+
+    await client.query('COMMIT');
+
+    return res.json({
+      ok: true,
+      nonce,
+      domain,
+      expiresAt: expiresAt.toISOString()
+    });
+
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {}
+
+    console.error(
+      'TON Proof nonce error:',
+      error
+    );
+
+    return res.status(500).json({
+      ok: false,
+      error:
+        'Failed to create TON Proof challenge'
+    });
+
+  } finally {
+    client.release();
+  }
+});
+
+
+/* =========================================================
+   TON PROOF VERIFICATION HELPERS
+========================================================= */
+
+function sha256(buffer) {
+  return crypto
+    .createHash('sha256')
+    .update(buffer)
+    .digest();
+}
+
+function buildTonProofDigest(address, proof) {
+  const workchain = Buffer.alloc(4);
+
+  workchain.writeInt32BE(
+    address.workChain,
+    0
+  );
+
+  const domainBytes = Buffer.from(
+    proof.domain.value,
+    'utf8'
+  );
+
+  if (
+    proof.domain.lengthBytes !==
+    domainBytes.length
+  ) {
+    throw new Error(
+      'TON Proof domain length mismatch'
+    );
+  }
+
+  const domainLength = Buffer.alloc(4);
+
+  domainLength.writeUInt32LE(
+    proof.domain.lengthBytes,
+    0
+  );
+
+  const timestamp = Buffer.alloc(8);
+
+  timestamp.writeBigUInt64LE(
+    BigInt(proof.timestamp),
+    0
+  );
+
+  const message = Buffer.concat([
+    Buffer.from(
+      'ton-proof-item-v2/',
+      'utf8'
+    ),
+    workchain,
+    Buffer.from(address.hash),
+    domainLength,
+    domainBytes,
+    timestamp,
+    Buffer.from(
+      proof.payload,
+      'utf8'
+    )
+  ]);
+
+  const innerHash = sha256(message);
+
+  return sha256(
+    Buffer.concat([
+      Buffer.from([0xff, 0xff]),
+      Buffer.from(
+        'ton-connect',
+        'utf8'
+      ),
+      innerHash
+    ])
+  );
+}
+
+
+async function extractTonWalletPublicKey(
+  stateInit
+) {
+  try {
+    const {
+      WalletContractV1R1,
+      WalletContractV1R2,
+      WalletContractV1R3,
+      WalletContractV2R1,
+      WalletContractV2R2,
+      WalletContractV3R1,
+      WalletContractV3R2,
+      WalletContractV4,
+      WalletContractV5R1
+    } = await import('@ton/ton');
+
+    if (
+      !stateInit?.code ||
+      !stateInit?.data
+    ) {
+      return null;
+    }
+
+    function loadV1(slice) {
+      slice.loadUint(32);
+      return slice.loadBuffer(32);
+    }
+
+    function loadV2(slice) {
+      slice.loadUint(32);
+      return slice.loadBuffer(32);
+    }
+
+    function loadV3(slice) {
+      slice.loadUint(32);
+      slice.loadUint(32);
+      return slice.loadBuffer(32);
+    }
+
+    function loadV4(slice) {
+      slice.loadUint(32);
+      slice.loadUint(32);
+      return slice.loadBuffer(32);
+    }
+
+    function loadV5(slice) {
+      slice.loadBoolean();
+      slice.loadUint(32);
+      slice.loadUint(32);
+      return slice.loadBuffer(32);
+    }
+
+    const knownWallets = [
+      {
+        contract: WalletContractV1R1,
+        load: loadV1
+      },
+      {
+        contract: WalletContractV1R2,
+        load: loadV1
+      },
+      {
+        contract: WalletContractV1R3,
+        load: loadV1
+      },
+      {
+        contract: WalletContractV2R1,
+        load: loadV2
+      },
+      {
+        contract: WalletContractV2R2,
+        load: loadV2
+      },
+      {
+        contract: WalletContractV3R1,
+        load: loadV3
+      },
+      {
+        contract: WalletContractV3R2,
+        load: loadV3
+      },
+      {
+        contract: WalletContractV4,
+        load: loadV4
+      },
+      {
+        contract: WalletContractV5R1,
+        load: loadV5
+      }
+    ];
+
+    for (const wallet of knownWallets) {
+      try {
+        const walletInstance =
+          wallet.contract.create({
+            workchain: 0,
+            publicKey: Buffer.alloc(32)
+          });
+
+        const knownCode =
+          walletInstance.init.code;
+
+        if (
+          knownCode.equals(
+            stateInit.code
+          )
+        ) {
+          return wallet.load(
+            stateInit.data.beginParse()
+          );
+        }
+
+      } catch {
+        // Try next wallet version.
+      }
+    }
+
+    return null;
+
+  } catch (error) {
+    console.error(
+      'TON public key extraction error:',
+      error
+    );
+
+    return null;
+  }
+}
+
+
+/* =========================================================
+   VERIFY TON PROOF
+========================================================= */
+
+app.post(
+  '/api/tonconnect/verify',
+  async (req, res) => {
+    const client =
+      await pool.connect();
+
+    try {
+      const initData =
+        req.body?.initData;
+
+      const proof =
+        req.body?.proof;
+
+      const addressString =
+        normalizeTonAddress(
+          req.body?.address
+        );
+
+      const walletStateInit =
+        req.body?.walletStateInit;
+
+      const network =
+        String(
+          req.body?.network ?? ''
+        );
+
+      if (!initData) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            'Missing Telegram initData'
+        });
+      }
+
+      if (!proof) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            'Missing TON Proof'
+        });
+      }
+
+      if (!addressString) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            'Missing TON wallet address'
+        });
+      }
+
+      if (!walletStateInit) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            'Missing walletStateInit'
+        });
+      }
+
+      if (network !== '-239') {
+        return res.status(400).json({
+          ok: false,
+          error:
+            'Only TON mainnet wallets are accepted'
+        });
+      }
+
+      const telegramUser =
+        verifyInitData(initData);
+
+      if (!telegramUser?.id) {
+        return res.status(401).json({
+          ok: false,
+          error:
+            'Invalid Telegram initData'
+        });
+      }
+
+      if (
+        typeof proof.timestamp !==
+          'number' ||
+        !Number.isFinite(
+          proof.timestamp
+        )
+      ) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            'Invalid TON Proof timestamp'
+        });
+      }
+
+      if (
+        !proof.domain ||
+        typeof proof.domain.value !==
+          'string' ||
+        typeof proof.domain.lengthBytes !==
+          'number'
+      ) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            'Invalid TON Proof domain'
+        });
+      }
+
+      if (
+        typeof proof.payload !==
+        'string'
+      ) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            'Invalid TON Proof payload'
+        });
+      }
+
+      if (
+        typeof proof.signature !==
+        'string'
+      ) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            'Invalid TON Proof signature'
+        });
+      }
+
+      const expectedDomain =
+        getTonProofDomain();
+
+      if (
+        proof.domain.value !==
+        expectedDomain
+      ) {
+        return res.status(401).json({
+          ok: false,
+          error:
+            'TON Proof domain mismatch'
+        });
+      }
+
+      const now =
+        Math.floor(
+          Date.now() / 1000
+        );
+
+      const maxAge =
+        15 * 60;
+
+      if (
+        Math.abs(
+          now -
+          proof.timestamp
+        ) > maxAge
+      ) {
+        return res.status(401).json({
+          ok: false,
+          error:
+            'TON Proof expired'
+        });
+      }
+
+      const challengeResult =
+        await client.query(
+          `SELECT
+             id,
+             telegram_user_id,
+             nonce,
+             domain,
+             expires_at,
+             used_at
+           FROM ton_proof_challenges
+           WHERE telegram_user_id = $1
+             AND nonce = $2
+             AND domain = $3
+           ORDER BY id DESC
+           LIMIT 1`,
+          [
+            telegramUser.id,
+            proof.payload,
+            expectedDomain
+          ]
+        );
+
+      if (
+        challengeResult.rowCount ===
+        0
+      ) {
+        return res.status(401).json({
+          ok: false,
+          error:
+            'Invalid or unknown TON Proof nonce'
+        });
+      }
+
+      const challenge =
+        challengeResult.rows[0];
+
+      if (challenge.used_at) {
+        return res.status(401).json({
+          ok: false,
+          error:
+            'TON Proof nonce already used'
+        });
+      }
+
+      if (
+        new Date(
+          challenge.expires_at
+        ).getTime() <=
+        Date.now()
+      ) {
+        return res.status(401).json({
+          ok: false,
+          error:
+            'TON Proof nonce expired'
+        });
+      }
+
+      const {
+        Address,
+        Cell,
+        contractAddress,
+        loadStateInit
+      } = await import('@ton/ton');
+
+      const wantedAddress =
+        Address.parse(
+          addressString
+        );
+
+      const stateInit =
+        loadStateInit(
+          Cell
+            .fromBase64(
+              walletStateInit
+            )
+            .beginParse()
+        );
+
+      const derivedAddress =
+        contractAddress(
+          wantedAddress.workChain,
+          stateInit
+        );
+
+      if (
+        !derivedAddress.equals(
+          wantedAddress
+        )
+      ) {
+        return res.status(401).json({
+          ok: false,
+          error:
+            'walletStateInit does not match wallet address'
+        });
+      }
+
+      const publicKey =
+        await extractTonWalletPublicKey(
+          stateInit
+        );
+
+      if (!publicKey) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            'Unsupported TON wallet contract'
+        });
+      }
+
+      const digest =
+        buildTonProofDigest(
+          wantedAddress,
+          proof
+        );
+
+      const signature =
+        Buffer.from(
+          proof.signature,
+          'base64'
+        );
+
+      if (
+        signature.length !==
+        64
+      ) {
+        return res.status(401).json({
+          ok: false,
+          error:
+            'Invalid TON Proof signature'
+        });
+      }
+
+      const valid =
+        crypto.verify(
+          null,
+          digest,
+          {
+            key: Buffer.concat([
+              Buffer.from(
+                '302a300506032b6570032100',
+                'hex'
+              ),
+              Buffer.from(
+                publicKey
+              )
+            ]),
+            format: 'der',
+            type: 'spki'
+          },
+          signature
+        );
+
+      if (!valid) {
+        return res.status(401).json({
+          ok: false,
+          error:
+            'TON Proof signature verification failed'
+        });
+      }
+
+      const consumeResult =
+        await client.query(
+          `UPDATE ton_proof_challenges
+           SET used_at = NOW()
+           WHERE id = $1
+             AND used_at IS NULL
+             AND expires_at > NOW()
+           RETURNING id`,
+          [challenge.id]
+        );
+
+      if (
+        consumeResult.rowCount ===
+        0
+      ) {
+        return res.status(409).json({
+          ok: false,
+          error:
+            'TON Proof challenge was already consumed'
+        });
+      }
+
+      await client.query(
+        `UPDATE users
+         SET
+           ton_wallet_address = $1,
+           ton_wallet_public_key = $2,
+           ton_wallet_chain = $3,
+           ton_wallet_verified_at = NOW()
+         WHERE telegram_user_id = $4`,
+        [
+          wantedAddress.toString(),
+          Buffer.from(
+            publicKey
+          ).toString('hex'),
+          Number(network),
+          telegramUser.id
+        ]
+      );
+
+      await audit(
+        client,
+        'ton_wallet_verified',
+        telegramUser.id,
+        null,
+        {
+          walletAddress:
+            wantedAddress.toString(),
+          network:
+            Number(network)
+        }
+      );
+
+      return res.json({
+        ok: true,
+        verified: true,
+        walletAddress:
+          wantedAddress.toString(),
+        network:
+          Number(network)
+      });
+
+    } catch (error) {
+      console.error(
+        'TON Proof verification error:',
+        error
+      );
+
+      return res.status(500).json({
+        ok: false,
+        error:
+          'TON Proof verification failed'
+      });
+
+    } finally {
+      client.release();
+    }
+  }
+);
+/* =========================================================
    TON PROOF CHALLENGE API
 ========================================================= */
 
