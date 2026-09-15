@@ -110,9 +110,14 @@ function toDateOnlyString(value) {
 /* =========================================================
    TON PROOF HELPERS
 ========================================================= */
+/* =========================================================
+   TON PROOF HELPERS
+========================================================= */
+
 function createTonProofNonce() {
   return crypto.randomBytes(32).toString('hex');
 }
+
 function getTonProofDomain() {
   try {
     return new URL(APP_URL).host;
@@ -120,17 +125,22 @@ function getTonProofDomain() {
     return APP_URL;
   }
 }
+
 function getTonProofExpirationSeconds() {
   return 10 * 60;
 }
+
 function normalizeTonAddress(address) {
   if (typeof address !== 'string') {
     return null;
   }
+
   const value = address.trim();
+
   if (!value) {
     return null;
   }
+
   return value;
 }
 /* =========================================================
