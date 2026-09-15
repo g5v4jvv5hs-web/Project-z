@@ -582,27 +582,103 @@ async function getOrCreateReferralLink(client, userId, phase) {
 /* =========================================================
    INVOICE (Telegram Stars)
    ========================================================= */
+/* =========================================================
+   TON PROOF CHALLENGE API
+========================================================= */
 
-async function createEntryInvoice(userId, phaseId) {
-  const nonce = crypto.randomBytes(16).toString('hex');
-  const payload = `pz_entry:${phaseId}:${userId}:${nonce}`;
+app.post('/api/tonconnect/nonce', async (req, res) => {
+  const client = await pool.connect();
 
-  const result = await telegramApi('createInvoiceLink', {
-    title: 'Project Z Entry',
-    description: 'Daily Project Z entry',
-    payload,
-    currency: 'XTR',
-    prices: [
+  try {
+    const initData = req.body?.initData;
+
+    if (!initData) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing Telegram initData'
+      });
+    }
+
+    const telegramUser = verifyInitData(initData);
+
+    if (!telegramUser?.id) {
+      return res.status(401).json({
+        ok: false,
+        error: 'Invalid Telegram initData'
+      });
+    }
+
+    await client.query('BEGIN');
+
+    const user = await ensureUser(client, telegramUser);
+
+    const nonce = createTonProofNonce();
+    const domain = getTonProofDomain();
+    const expirationSeconds = getTonProofExpirationSeconds();
+
+    const expiresAt = new Date(
+      Date.now() + expirationSeconds * 1000
+    );
+
+    // Remove old unused challenges for this Telegram user.
+    await client.query(
+      `DELETE FROM ton_proof_challenges
+       WHERE telegram_user_id = $1
+         AND used_at IS NULL`,
+      [telegramUser.id]
+    );
+
+    await client.query(
+      `INSERT INTO ton_proof_challenges
+       (
+         telegram_user_id,
+         nonce,
+         domain,
+         expires_at
+       )
+       VALUES ($1, $2, $3, $4)`,
+      [
+        telegramUser.id,
+        nonce,
+        domain,
+        expiresAt
+      ]
+    );
+
+    await audit(
+      client,
+      'ton_proof_challenge_created',
+      telegramUser.id,
+      null,
       {
-        label: 'Project Z Entry',
-        amount: ENTRY_STARS
+        domain,
+        expiresAt: expiresAt.toISOString()
       }
-    ]
-  });
+    );
 
-  return { link: result, payload };
-}
+    await client.query('COMMIT');
 
+    return res.json({
+      ok: true,
+      nonce,
+      domain,
+      expiresAt: expiresAt.toISOString()
+    });
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {}
+
+    console.error('TON Proof nonce error:', error);
+
+    return res.status(500).json({
+      ok: false,
+      error: 'Failed to create TON Proof challenge'
+    });
+  } finally {
+    client.release();
+  }
+});
 /* =========================================================
    ROUTES
    ========================================================= */
