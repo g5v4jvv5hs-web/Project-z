@@ -1145,15 +1145,28 @@ app.post('/telegram/webhook', async (req, res) => {
 /* =========================================================
    ADMIN – FINALIZE PHASE (protected)
    ========================================================= */
+/* =========================================================
+   ADMIN – FINALIZE PHASE (protected)
+   ========================================================= */
 
 function verifyAdmin(req) {
   if (!ADMIN_SECRET) return false;
-  const supplied = req.headers['x-admin-secret'] || req.body?.adminSecret || '';
-  return typeof supplied === 'string' && supplied.length > 0 && supplied === ADMIN_SECRET;
+  const supplied =
+    req.headers['x-admin-secret'] ||
+    req.body?.adminSecret ||
+    '';
+
+  return (
+    typeof supplied === 'string' &&
+    supplied.length > 0 &&
+    supplied === ADMIN_SECRET
+  );
 }
 
 app.post('/api/admin/finalize-phase', async (req, res) => {
-  if (!verifyAdmin(req)) return res.status(403).json({ error: 'forbidden' });
+  if (!verifyAdmin(req)) {
+    return res.status(403).json({ error: 'forbidden' });
+  }
 
   const requestedPhaseDate = req.body?.phaseDate || null;
   const force = Boolean(req.body?.force);
@@ -1164,15 +1177,22 @@ app.post('/api/admin/finalize-phase', async (req, res) => {
     await client.query('BEGIN');
 
     let phase;
+
     if (requestedPhaseDate) {
       const result = await client.query(
-        `SELECT * FROM phases WHERE phase_date = $1 FOR UPDATE`,
+        `SELECT * FROM phases
+         WHERE phase_date = $1
+         FOR UPDATE`,
         [requestedPhaseDate]
       );
+
       if (!result.rows.length) {
         await client.query('ROLLBACK');
-        return res.status(404).json({ error: 'phase_not_found' });
+        return res.status(404).json({
+          error: 'phase_not_found'
+        });
       }
+
       phase = result.rows[0];
     } else {
       phase = await getCurrentPhase(client);
@@ -1180,160 +1200,422 @@ app.post('/api/admin/finalize-phase', async (req, res) => {
 
     if (phase.status === 'finalized') {
       await client.query('COMMIT');
-      return res.json({ alreadyFinalized: true, phaseDate: phase.phase_date });
+
+      return res.json({
+        alreadyFinalized: true,
+        phaseDate: phase.phase_date
+      });
     }
 
     // Prevent early finalization unless force=true
     const todayMoscow = getMoscowDateString();
     const phaseDateOnly = toDateOnlyString(phase.phase_date);
-    if (phaseDateOnly && phaseDateOnly >= todayMoscow && !force) {
+
+    if (
+      phaseDateOnly &&
+      phaseDateOnly >= todayMoscow &&
+      !force
+    ) {
       await client.query('ROLLBACK');
+
       return res.status(400).json({
         error: 'phase_not_yet_ended',
-        message: 'Phase can only be finalized after Moscow midnight. Use force:true only in emergency.'
+        message:
+          'Phase can only be finalized after Moscow midnight. Use force:true only in emergency.'
       });
     }
 
     await client.query(
-      `UPDATE phases SET status = 'finalizing', updated_at = NOW() WHERE id = $1`,
+      `UPDATE phases
+       SET status = 'finalizing',
+           updated_at = NOW()
+       WHERE id = $1`,
       [phase.id]
     );
 
     const totalStars = Number(phase.total_stars || 0);
     const poolUsd = totalStars * STAR_USD_RATE;
-    const configuredWinnerCount = getWinnerCountFromUsd(poolUsd);
+    const configuredWinnerCount =
+      getWinnerCountFromUsd(poolUsd);
 
     // Exact 69% / 1% / 30%
     const winnerPool = Math.floor(totalStars * 0.69);
     const charity = Math.floor(totalStars * 0.01);
-    const operations = totalStars - winnerPool - charity;
+    const operations =
+      totalStars - winnerPool - charity;
 
     const entriesResult = await client.query(
       `SELECT id, telegram_user_id, is_first_payer
-       FROM entries WHERE phase_id = $1 ORDER BY id ASC`,
+       FROM entries
+       WHERE phase_id = $1
+       ORDER BY id ASC`,
       [phase.id]
     );
+
     const entries = entriesResult.rows;
 
-    if (totalStars <= 0 || entries.length === 0) {
+    /*
+     * No entries / no money
+     */
+    if (
+      totalStars <= 0 ||
+      entries.length === 0
+    ) {
       await client.query(
-        `UPDATE phases SET
-           status = 'finalized',
-           winner_pool_stars = 0,
-           charity_stars = $1,
-           operations_stars = $2,
-           winner_count = 0,
-           finalized_at = NOW(),
-           updated_at = NOW()
+        `UPDATE phases
+         SET status = 'finalized',
+             winner_pool_stars = 0,
+             charity_stars = $1,
+             operations_stars = $2,
+             winner_count = 0,
+             finalized_at = NOW(),
+             updated_at = NOW()
          WHERE id = $3`,
-        [charity, operations, phase.id]
+        [
+          charity,
+          operations,
+          phase.id
+        ]
       );
 
       await client.query(
-        `INSERT INTO allocations (phase_id, type, stars_amount)
-         VALUES ($1,'winners',0), ($1,'charity',$2), ($1,'operations',$3)
-         ON CONFLICT (phase_id, type) DO UPDATE SET stars_amount = EXCLUDED.stars_amount`,
-        [phase.id, charity, operations]
+        `INSERT INTO allocations
+           (phase_id, type, stars_amount)
+         VALUES
+           ($1, 'winners', 0),
+           ($1, 'charity', $2),
+           ($1, 'operations', $3)
+         ON CONFLICT (phase_id, type)
+         DO UPDATE SET
+           stars_amount = EXCLUDED.stars_amount`,
+        [
+          phase.id,
+          charity,
+          operations
+        ]
       );
 
-      await audit(client, 'phase_finalized', null, phase.id, { winners: 0, totalStars });
+      await audit(
+        client,
+        'phase_finalized',
+        null,
+        phase.id,
+        {
+          winners: 0,
+          totalStars
+        }
+      );
+
       await client.query('COMMIT');
-      return res.json({ finalized: true, winners: 0 });
+
+      return res.json({
+        finalized: true,
+        winners: 0
+      });
     }
 
-    const winnerCount = Math.min(configuredWinnerCount, entries.length);
+    /*
+     * Calculate actual winner count.
+     * Never select more winners than entries.
+     */
+    const winnerCount = Math.min(
+      configuredWinnerCount,
+      entries.length
+    );
 
     if (winnerCount <= 0) {
       await client.query(
-        `UPDATE phases SET
-           status = 'finalized',
-           winner_pool_stars = 0,
-           charity_stars = $1,
-           operations_stars = $2,
-           winner_count = 0,
-           finalized_at = NOW(),
-           updated_at = NOW()
+        `UPDATE phases
+         SET status = 'finalized',
+             winner_pool_stars = 0,
+             charity_stars = $1,
+             operations_stars = $2,
+             winner_count = 0,
+             finalized_at = NOW(),
+             updated_at = NOW()
          WHERE id = $3`,
-        [charity, operations, phase.id]
+        [
+          charity,
+          operations,
+          phase.id
+        ]
       );
+
       await client.query('COMMIT');
-      return res.json({ finalized: true, winners: 0, poolUsd });
+
+      return res.json({
+        finalized: true,
+        winners: 0,
+        poolUsd
+      });
     }
 
-    const prizePerWinner = Math.floor(winnerPool / winnerCount);
+    /*
+     * Base prize per winner.
+     *
+     * Any remainder from the 69% winner pool
+     * will be distributed one Star at a time
+     * starting from Rank 1.
+     *
+     * This keeps the total winner allocation
+     * exactly equal to winnerPool.
+     */
+    const basePrizePerWinner = Math.floor(
+      winnerPool / winnerCount
+    );
+
+    const winnerRemainder =
+      winnerPool -
+      basePrizePerWinner * winnerCount;
+
+    /*
+     * Select winners
+     */
     const selectedIds = new Set();
 
     // Guarantee first verified payer
-    const firstPayer = entries.find((e) => e.is_first_payer);
-    if (firstPayer) selectedIds.add(Number(firstPayer.id));
+    const firstPayer = entries.find(
+      (e) => e.is_first_payer
+    );
+
+    if (firstPayer) {
+      selectedIds.add(
+        Number(firstPayer.id)
+      );
+    }
 
     // Cryptographically secure random selection
-    while (selectedIds.size < winnerCount) {
-      const index = crypto.randomInt(0, entries.length);
-      selectedIds.add(Number(entries[index].id));
+    while (
+      selectedIds.size < winnerCount
+    ) {
+      const index = crypto.randomInt(
+        0,
+        entries.length
+      );
+
+      selectedIds.add(
+        Number(entries[index].id)
+      );
     }
 
-    // Rank 1 = first payer (if exists), then shuffle the rest
-    const selected = entries.filter((e) => selectedIds.has(Number(e.id)));
-    const first = selected.find((e) => e.is_first_payer);
-    const others = selected.filter((e) => !e.is_first_payer);
+    /*
+     * Rank 1 = first payer if one exists.
+     * Remaining winners are shuffled securely.
+     */
+    const selected = entries.filter((e) =>
+      selectedIds.has(Number(e.id))
+    );
 
-    for (let i = others.length - 1; i > 0; i--) {
-      const j = crypto.randomInt(0, i + 1);
-      [others[i], others[j]] = [others[j], others[i]];
+    const first = selected.find(
+      (e) => e.is_first_payer
+    );
+
+    const others = selected.filter(
+      (e) => !e.is_first_payer
+    );
+
+    for (
+      let i = others.length - 1;
+      i > 0;
+      i--
+    ) {
+      const j = crypto.randomInt(
+        0,
+        i + 1
+      );
+
+      [others[i], others[j]] = [
+        others[j],
+        others[i]
+      ];
     }
 
-    const ordered = first ? [first, ...others] : others;
+    const ordered = first
+      ? [first, ...others]
+      : others;
 
+    /*
+     * Insert winners + payout ledger
+     *
+     * Each winner receives:
+     * basePrizePerWinner
+     *
+     * Plus 1 extra Star for the first
+     * `winnerRemainder` ranks.
+     *
+     * This guarantees:
+     *
+     * winners = exactly 69%
+     * charity = exactly 1%
+     * operations = exactly 30%
+     */
     let rank = 1;
+
     for (const entry of ordered) {
+      const currentRank = rank++;
+
+      const prizeStars =
+        basePrizePerWinner +
+        (
+          currentRank <= winnerRemainder
+            ? 1
+            : 0
+        );
+
+      /*
+       * Insert winner.
+       */
       await client.query(
-        `INSERT INTO winners (phase_id, entry_id, telegram_user_id, rank, prize_stars, is_first_payer)
-         VALUES ($1,$2,$3,$4,$5,$6)
-         ON CONFLICT (entry_id) DO NOTHING`,
+        `INSERT INTO winners
+           (
+             phase_id,
+             entry_id,
+             telegram_user_id,
+             rank,
+             prize_stars,
+             is_first_payer
+           )
+         VALUES
+           ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (entry_id)
+         DO NOTHING`,
         [
           phase.id,
           entry.id,
           entry.telegram_user_id,
-          rank++,
-          prizePerWinner,
+          currentRank,
+          prizeStars,
           Boolean(entry.is_first_payer)
+        ]
+      );
+
+      /*
+       * Get the winner row ID.
+       *
+       * This also works if the winner row
+       * already existed because of a retry.
+       */
+      const winnerResult = await client.query(
+        `SELECT id, prize_stars
+         FROM winners
+         WHERE phase_id = $1
+           AND entry_id = $2
+         LIMIT 1`,
+        [
+          phase.id,
+          entry.id
+        ]
+      );
+
+      if (!winnerResult.rows.length) {
+        throw new Error(
+          `winner_row_missing_for_entry_${entry.id}`
+        );
+      }
+
+      const winner = winnerResult.rows[0];
+
+      /*
+       * Create payout ledger entry.
+       *
+       * IMPORTANT:
+       * This does NOT send money yet.
+       * It creates a safe pending payout
+       * record for the future payout worker.
+       */
+      await client.query(
+        `INSERT INTO payouts
+           (
+             phase_id,
+             winner_id,
+             telegram_user_id,
+             amount_stars,
+             status
+           )
+         VALUES
+           ($1, $2, $3, $4, 'pending')
+         ON CONFLICT (winner_id)
+         DO NOTHING`,
+        [
+          phase.id,
+          winner.id,
+          entry.telegram_user_id,
+          Number(winner.prize_stars)
         ]
       );
     }
 
-    const actualWinnerPrize = prizePerWinner * winnerCount;
-    const finalOperations = totalStars - actualWinnerPrize - charity;
+    /*
+     * Because the remainder was distributed
+     * among winners, the actual winner amount
+     * is exactly the 69% winner pool.
+     */
+    const actualWinnerPrize = winnerPool;
+
+    /*
+     * Exact remaining 30% after 69% winners
+     * and 1% charity.
+     */
+    const finalOperations =
+      totalStars -
+      actualWinnerPrize -
+      charity;
 
     await client.query(
-      `UPDATE phases SET
-         status = 'finalized',
-         winner_pool_stars = $1,
-         charity_stars = $2,
-         operations_stars = $3,
-         winner_count = $4,
-         finalized_at = NOW(),
-         updated_at = NOW()
+      `UPDATE phases
+       SET status = 'finalized',
+           winner_pool_stars = $1,
+           charity_stars = $2,
+           operations_stars = $3,
+           winner_count = $4,
+           finalized_at = NOW(),
+           updated_at = NOW()
        WHERE id = $5`,
-      [actualWinnerPrize, charity, finalOperations, winnerCount, phase.id]
+      [
+        actualWinnerPrize,
+        charity,
+        finalOperations,
+        winnerCount,
+        phase.id
+      ]
     );
 
     await client.query(
-      `INSERT INTO allocations (phase_id, type, stars_amount)
-       VALUES ($1,'winners',$2), ($1,'charity',$3), ($1,'operations',$4)
-       ON CONFLICT (phase_id, type) DO UPDATE SET stars_amount = EXCLUDED.stars_amount`,
-      [phase.id, actualWinnerPrize, charity, finalOperations]
+      `INSERT INTO allocations
+         (phase_id, type, stars_amount)
+       VALUES
+         ($1, 'winners', $2),
+         ($1, 'charity', $3),
+         ($1, 'operations', $4)
+       ON CONFLICT (phase_id, type)
+       DO UPDATE SET
+         stars_amount = EXCLUDED.stars_amount`,
+      [
+        phase.id,
+        actualWinnerPrize,
+        charity,
+        finalOperations
+      ]
     );
 
-    await audit(client, 'phase_finalized', null, phase.id, {
-      totalStars,
-      poolUsd,
-      configuredWinnerCount,
-      actualWinnerCount: winnerCount,
-      winnerPrize: prizePerWinner,
-      charity,
-      operations: finalOperations
-    });
+    await audit(
+      client,
+      'phase_finalized',
+      null,
+      phase.id,
+      {
+        totalStars,
+        poolUsd,
+        configuredWinnerCount,
+        actualWinnerCount: winnerCount,
+        winnerPoolStars: actualWinnerPrize,
+        basePrizePerWinner,
+        winnerRemainder,
+        charity: charity,
+        operations: finalOperations,
+        payoutsCreated: winnerCount
+      }
+    );
 
     await client.query('COMMIT');
 
@@ -1343,19 +1625,30 @@ app.post('/api/admin/finalize-phase', async (req, res) => {
       totalStars,
       poolUsd,
       winners: winnerCount,
-      prizeStars: prizePerWinner,
+      winnerPoolStars: actualWinnerPrize,
+      basePrizePerWinner,
+      winnerRemainder,
       charityStars: charity,
-      operationsStars: finalOperations
+      operationsStars: finalOperations,
+      payoutsCreated: winnerCount
     });
+
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('finalize error:', error);
-    res.status(500).json({ error: 'finalize_failed' });
+
+    console.error(
+      'finalize error:',
+      error
+    );
+
+    res.status(500).json({
+      error: 'finalize_failed'
+    });
+
   } finally {
     client.release();
   }
 });
-
 /* =========================================================
    PUBLIC WINNERS (privacy-safe)
    ========================================================= */
