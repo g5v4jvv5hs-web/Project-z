@@ -432,6 +432,22 @@ button{
 if(window.Telegram && Telegram.WebApp){
   Telegram.WebApp.ready();
   Telegram.WebApp.expand();
+
+  const tonConnectScript = document.createElement("script");
+
+  tonConnectScript.src =
+    "https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js";
+
+  tonConnectScript.onload = () => {
+    window.tonConnectReady = true;
+    console.log("TON Connect library loaded");
+  };
+
+  tonConnectScript.onerror = () => {
+    console.error("TON Connect library failed to load");
+  };
+
+  document.head.appendChild(tonConnectScript);
 }
 /* =========================================================
    REAL DATA
