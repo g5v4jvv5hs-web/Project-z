@@ -205,9 +205,48 @@ async function initializeDatabase() {
         last_name TEXT,
         language_code TEXT,
         is_premium BOOLEAN DEFAULT FALSE,
+        ton_wallet_address TEXT,
+        ton_wallet_public_key TEXT,
+        ton_wallet_chain INTEGER,
+        ton_wallet_verified_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
+    `);
+    await client.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS ton_wallet_address TEXT
+    `);
+    await client.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS ton_wallet_public_key TEXT
+    `);
+    await client.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS ton_wallet_chain INTEGER
+    `);
+    await client.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS ton_wallet_verified_at TIMESTAMPTZ
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ton_proof_challenges (
+        id BIGSERIAL PRIMARY KEY,
+        telegram_user_id BIGINT NOT NULL,
+        nonce TEXT NOT NULL UNIQUE,
+        domain TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at TIMESTAMPTZ
+      )
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_ton_proof_challenges_user
+      ON ton_proof_challenges(telegram_user_id)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_ton_proof_challenges_expires
+      ON ton_proof_challenges(expires_at)
     `);
     await client.query(`
       CREATE TABLE IF NOT EXISTS phases (
@@ -324,15 +363,26 @@ async function initializeDatabase() {
         phase_id BIGINT NOT NULL REFERENCES phases(id) ON DELETE CASCADE,
         winner_id BIGINT NOT NULL REFERENCES winners(id) ON DELETE CASCADE,
         telegram_user_id BIGINT NOT NULL,
-        amount_stars INTEGER NOT NULL CHECK (amount_stars > 0),
+        amount_stars NUMERIC(30,0) NOT NULL
+          CHECK (amount_stars > 0),
         status TEXT NOT NULL DEFAULT 'pending',
         telegram_transaction_id TEXT,
+        ton_wallet_address TEXT,
+        ton_tx_hash TEXT,
         failure_reason TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         processing_at TIMESTAMPTZ,
         paid_at TIMESTAMPTZ,
         UNIQUE (winner_id)
       )
+    `);
+    await client.query(`
+      ALTER TABLE payouts
+      ADD COLUMN IF NOT EXISTS ton_wallet_address TEXT
+    `);
+    await client.query(`
+      ALTER TABLE payouts
+      ADD COLUMN IF NOT EXISTS ton_tx_hash TEXT
     `);
     await client.query(`
       CREATE TABLE IF NOT EXISTS allocations (
