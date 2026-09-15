@@ -1734,6 +1734,57 @@ document.addEventListener("click",function(event){
 /* =========================================================
    START
 ========================================================= */
+        </p>
+      </div>
+    </main>
+  `;
+}
+/* =========================================================
+   SUPPORT
+========================================================= */
+function showSupport(){
+  document.getElementById("app").innerHTML = `
+    <div class="header">
+      <div class="logo">PROJECT <span>Z</span></div>
+      <div class="badge">SUPPORT</div>
+    </div>
+    <main class="page">
+      <button class="back" onclick="showMore()">
+        ← BACK
+      </button>
+      <div class="title">
+        PROJECT Z<br>
+        <span>SUPPORT</span>
+      </div>
+      <div class="card">
+        <div class="info">
+          For account, payment or participation questions,
+          contact the official Project Z support channel.
+        </div>
+        <button class="primary"
+          onclick="alert('Official support contact will be added here.')">
+          CONTACT SUPPORT
+        </button>
+      </div>
+    </main>
+  `;
+}
+/* =========================================================
+   NAVIGATION
+========================================================= */
+document.addEventListener("click",function(event){
+  const nav = event.target.closest(".nav");
+  if(!nav) return;
+  const page = nav.dataset.page;
+  if(page==="home") showHome();
+  if(page==="play") showPlay();
+  if(page==="wallet") showWallet();
+  if(page==="referral") showReferral();
+  if(page==="more") showMore();
+});
+/* =========================================================
+   START
+========================================================= */
 loadProjectData().then(function(){
   showHome();
   updateCountdown();
