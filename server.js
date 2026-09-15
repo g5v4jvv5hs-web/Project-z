@@ -192,12 +192,10 @@ async function telegramApi(method, body = {}) {
 /* =========================================================
    DATABASE INITIALIZATION (auto-create tables)
    ========================================================= */
-
 async function initializeDatabase() {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id BIGSERIAL PRIMARY KEY,
@@ -211,7 +209,6 @@ async function initializeDatabase() {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
-
     await client.query(`
       CREATE TABLE IF NOT EXISTS phases (
         id BIGSERIAL PRIMARY KEY,
@@ -228,7 +225,6 @@ async function initializeDatabase() {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
-
     await client.query(`
       CREATE TABLE IF NOT EXISTS payments (
         id BIGSERIAL PRIMARY KEY,
@@ -242,7 +238,6 @@ async function initializeDatabase() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
-
     await client.query(`
       CREATE TABLE IF NOT EXISTS invoices (
         id BIGSERIAL PRIMARY KEY,
@@ -256,7 +251,6 @@ async function initializeDatabase() {
         expires_at TIMESTAMPTZ NOT NULL
       )
     `);
-
     await client.query(`
       CREATE TABLE IF NOT EXISTS entries (
         id BIGSERIAL PRIMARY KEY,
@@ -269,7 +263,6 @@ async function initializeDatabase() {
         UNIQUE (telegram_user_id, phase_id)
       )
     `);
-
     await client.query(`
       CREATE TABLE IF NOT EXISTS referral_links (
         id BIGSERIAL PRIMARY KEY,
@@ -280,7 +273,6 @@ async function initializeDatabase() {
         UNIQUE (referrer_id, phase_id)
       )
     `);
-
     await client.query(`
       CREATE TABLE IF NOT EXISTS referral_attachments (
         id BIGSERIAL PRIMARY KEY,
@@ -292,7 +284,6 @@ async function initializeDatabase() {
         UNIQUE (referred_user_id, phase_id)
       )
     `);
-
     await client.query(`
       CREATE TABLE IF NOT EXISTS referral_conversions (
         id BIGSERIAL PRIMARY KEY,
@@ -304,7 +295,6 @@ async function initializeDatabase() {
         UNIQUE (referred_user_id, phase_id)
       )
     `);
-
     await client.query(`
       CREATE TABLE IF NOT EXISTS free_entry_grants (
         id BIGSERIAL PRIMARY KEY,
@@ -315,7 +305,6 @@ async function initializeDatabase() {
         UNIQUE (telegram_user_id, phase_id)
       )
     `);
-
     await client.query(`
       CREATE TABLE IF NOT EXISTS winners (
         id BIGSERIAL PRIMARY KEY,
@@ -329,7 +318,22 @@ async function initializeDatabase() {
         UNIQUE (phase_id, rank)
       )
     `);
-
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS payouts (
+        id BIGSERIAL PRIMARY KEY,
+        phase_id BIGINT NOT NULL REFERENCES phases(id) ON DELETE CASCADE,
+        winner_id BIGINT NOT NULL REFERENCES winners(id) ON DELETE CASCADE,
+        telegram_user_id BIGINT NOT NULL,
+        amount_stars INTEGER NOT NULL CHECK (amount_stars > 0),
+        status TEXT NOT NULL DEFAULT 'pending',
+        telegram_transaction_id TEXT,
+        failure_reason TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        processing_at TIMESTAMPTZ,
+        paid_at TIMESTAMPTZ,
+        UNIQUE (winner_id)
+      )
+    `);
     await client.query(`
       CREATE TABLE IF NOT EXISTS allocations (
         id BIGSERIAL PRIMARY KEY,
@@ -340,7 +344,6 @@ async function initializeDatabase() {
         UNIQUE (phase_id, type)
       )
     `);
-
     await client.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id BIGSERIAL PRIMARY KEY,
@@ -351,13 +354,34 @@ async function initializeDatabase() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
-
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_entries_phase ON entries(phase_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_entries_user_phase ON entries(telegram_user_id, phase_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_payments_phase ON payments(phase_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_referral_conversions_referrer ON referral_conversions(referrer_id, phase_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_audit_phase ON audit_logs(phase_id)`);
-
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_entries_phase
+      ON entries(phase_id)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_entries_user_phase
+      ON entries(telegram_user_id, phase_id)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_payments_phase
+      ON payments(phase_id)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_referral_conversions_referrer
+      ON referral_conversions(referrer_id, phase_id)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_payouts_status
+      ON payouts(status)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_payouts_phase
+      ON payouts(phase_id)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_audit_phase
+      ON audit_logs(phase_id)
+    `);
     await client.query('COMMIT');
     console.log('Database initialized successfully.');
   } catch (error) {
@@ -367,7 +391,6 @@ async function initializeDatabase() {
     client.release();
   }
 }
-
 /* =========================================================
    CURRENT PHASE (Moscow calendar date)
    ========================================================= */
