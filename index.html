@@ -590,7 +590,24 @@ function navHTML(active){
 /* =========================================================
    HOME
 ========================================================= */
-function showHome(){
+async function showHome(){
+  try {
+    const response = await fetch(`${API_BASE}/api/stats`);
+    const stats = await response.json();
+
+    if (response.ok) {
+      projectData.users = Number(stats.participants || 0);
+      projectData.pool = Number(stats.poolUsd || 0);
+      projectData.poolStars = Number(stats.poolStars || 0);
+
+      if (Array.isArray(stats.participantList)) {
+        projectData.participants = stats.participantList;
+      }
+    }
+  } catch (error) {
+    console.error("Failed to refresh Project Z stats:", error);
+  }
+
   document.getElementById("app").innerHTML = `
     <div class="header">
       <div class="logo">PROJECT <span>Z</span></div>
