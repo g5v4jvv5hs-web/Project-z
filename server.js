@@ -516,26 +516,70 @@ app.get('/', (req, res) => {
     moscowDate: getMoscowDateString()
   });
 });
-
 app.get('/api/stats', async (req, res) => {
   const client = await pool.connect();
   try {
     const phase = await getCurrentPhase(client);
+
     const entries = await client.query(
-      `SELECT COUNT(*)::int AS count FROM entries WHERE phase_id = $1`,
+      `SELECT COUNT(*)::int AS count
+       FROM entries
+       WHERE phase_id = $1`,
       [phase.id]
     );
 
-    const poolStars = Number(phase.total_stars || 0);
+    const participants = Number(entries.rows[0].count);
+
+    // Prize Pool = exactly 70% of all successfully collected Stars.
+    // The database continues to store the FULL amount paid.
+    const poolStars = Math.floor(Number(phase.total_stars || 0) * 0.70);
     const poolUsd = poolStars * STAR_USD_RATE;
     const winnerCount = getWinnerCountFromUsd(poolUsd);
+
+    // Public participant list only.
+    // Never expose Telegram IDs or payment/private data.
+    const participantResult = await client.query(
+      `SELECT
+         u.username,
+         u.first_name,
+         u.last_name,
+         e.created_at,
+         e.is_first_payer
+       FROM entries e
+       JOIN users u
+         ON u.telegram_id = e.telegram_user_id
+       WHERE e.phase_id = $1
+       ORDER BY e.id DESC
+       LIMIT 20`,
+      [phase.id]
+    );
+
+    const participantList = participantResult.rows.map((row) => {
+      const fullName = [row.first_name, row.last_name]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+
+      const displayName =
+        row.username ||
+        fullName ||
+        'Participant';
+
+      return {
+        username: row.username || null,
+        displayName,
+        createdAt: row.created_at,
+        isFirstPayer: Boolean(row.is_first_payer)
+      };
+    });
 
     res.json({
       phaseDate: phase.phase_date,
       status: phase.status,
       poolStars,
       poolUsd: Number(poolUsd.toFixed(4)),
-      participants: Number(entries.rows[0].count),
+      participants,
+      participantList,
       winnerCount,
       entryStars: ENTRY_STARS,
       entryUsdDisplay: 2,
