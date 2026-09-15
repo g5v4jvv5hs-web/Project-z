@@ -994,23 +994,15 @@ function showEntry(){
       <div class="badge">ENTRY</div>
     </div>
     <main class="page">
-      <button class="back" onclick="showPlay()">
-        ← BACK
-      </button>
-      <div class="eyebrow">
-        CONFIRM PARTICIPATION
-      </div>
+      <button class="back" onclick="showPlay()">← BACK</button>
+      <div class="eyebrow">CONFIRM PARTICIPATION</div>
       <div class="title">
         DAILY<br>
         <span>ENTRY</span>
       </div>
       <div class="card">
-        <div class="pool-label">
-          ENTRY PRICE
-        </div>
-        <div class="price">
-          $2
-        </div>
+        <div class="pool-label">ENTRY PRICE</div>
+        <div class="price">$2</div>
         <div class="info">
           You are confirming your intention to enter
           today's Project Z phase.
@@ -1029,6 +1021,8 @@ function showEntry(){
       </div>
     </main>
   `;
+}
+
 async function confirmEntry(){
   const tg = window.Telegram && Telegram.WebApp
     ? Telegram.WebApp
