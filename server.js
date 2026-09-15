@@ -423,6 +423,10 @@ async function audit(
    TREASURY VERIFY
    DOES NOT SEND MONEY
 ========================================================= */
+/* =========================================================
+   TREASURY VERIFY
+   DOES NOT SEND MONEY
+========================================================= */
 
 async function verifyTreasuryWallet() {
   treasuryState = {
@@ -466,11 +470,12 @@ async function verifyTreasuryWallet() {
         );
 
     if (
-      words.length !==
-      24
+      ![12, 24].includes(
+        words.length
+      )
     ) {
       throw new Error(
-        `Expected 24 mnemonic words, received ${words.length}`
+        `Expected 12 or 24 mnemonic words, received ${words.length}`
       );
     }
 
@@ -624,7 +629,6 @@ async function verifyTreasuryWallet() {
     return false;
   }
 }
-
 /* =========================================================
    TELEGRAM INIT DATA
 ========================================================= */
