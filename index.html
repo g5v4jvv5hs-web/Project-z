@@ -1184,38 +1184,68 @@ async function confirmEntry(){
 ========================================================= */
 function showWallet(){
   setNav("wallet");
+
   document.getElementById("app").innerHTML = `
     <div class="header">
       <div class="logo">PROJECT <span>Z</span></div>
       <div class="badge">WALLET</div>
     </div>
+
     <main class="page">
+
       <button class="back" onclick="showHome()">
         ← BACK
       </button>
+
       <div class="title">
         YOUR<br>
         <span>WALLET</span>
       </div>
+
       <div class="card">
+
         <div class="pool-label">
-          BALANCE
+          TON WALLET
         </div>
-        <div class="price">
-          $0.00
+
+        <div
+          id="ton-connect"
+          style="
+            display:flex;
+            justify-content:center;
+            align-items:center;
+            margin:24px 0;
+            min-height:52px;
+          "
+        ></div>
+
+        <div
+          id="ton-wallet-status"
+          class="info"
+          style="
+            text-align:center;
+            line-height:1.6;
+            word-break:break-word;
+          "
+        >
+          Connect your TON wallet to receive
+          Project Z prize payments.
         </div>
-        <div class="info">
-          Your real balance will appear here after the
-          payment and wallet backend are connected.
-        </div>
+
       </div>
+
       <div class="notice">
-        No balance is fabricated. Until a real transaction exists,
-        the balance remains $0.00.
+        Your wallet address will be used only for
+        Project Z prize settlement.
+        Never share your private key or recovery phrase.
       </div>
+
     </main>
+
     ${navHTML("wallet")}
   `;
+
+  initializeTonWallet();
 }
 /* =========================================================
    REFERRAL
