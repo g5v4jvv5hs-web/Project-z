@@ -8665,6 +8665,32 @@ app.get(
           client,
           phase.id
         );
+      const participantRows =
+  (
+    await client.query(
+      `
+        SELECT
+          u.display_name,
+          u.username
+
+        FROM entries e
+
+        LEFT JOIN users u
+          ON u.telegram_id =
+            e.telegram_user_id
+
+        WHERE e.phase_id = $1
+
+        ORDER BY
+          e.created_at DESC
+
+        LIMIT 6
+      `,
+      [
+        phase.id,
+      ]
+    )
+  ).rows;
 
       await client.query(
         "COMMIT"
