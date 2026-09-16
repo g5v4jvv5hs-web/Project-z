@@ -1020,6 +1020,52 @@ async function api(path,options={}){
     }
   }
 }
+  function handleTapZ(){
+  const letter =
+    document.getElementById(
+      "tap-z-letter"
+    );
+
+  if(letter){
+    letter.style.transition =
+      "transform .08s ease";
+
+    letter.style.transform =
+      "scale(.88)";
+
+    setTimeout(function(){
+      letter.style.transform =
+        "scale(1)";
+    },80);
+  }
+
+  try{
+    tg
+      ?.HapticFeedback
+      ?.impactOccurred(
+        "light"
+      );
+  }catch(error){}
+
+  if(
+    !tapState?.eligible
+  ){
+    return;
+  }
+
+  tapPending += 1;
+  renderTapState();
+
+  clearTimeout(
+    tapFlushTimer
+  );
+
+  tapFlushTimer =
+    setTimeout(
+      flushTapBatch,
+      350
+    );
+}
 
 /* =========================================================
    LOAD DATA
