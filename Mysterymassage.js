@@ -120,8 +120,8 @@ export const MYSTERY_MESSAGES = Object.freeze(
             1;
 
           return (
-            `Z/${channel}-${String(serial).padStart(3, "0")} // ` +
-            truth
+            `Z says: ` +
+truth
           );
         }
       )
