@@ -9639,6 +9639,7 @@ app.post(
 
               WHERE phase_id = $1
                 AND telegram_user_id = $2
+                                AND is_free = FALSE
 
               LIMIT 1
 
