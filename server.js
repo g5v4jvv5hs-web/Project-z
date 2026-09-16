@@ -6896,6 +6896,7 @@ async function finalizePhaseById(
 
               WHERE ts.phase_id = $1
                 AND e.is_first_payer = FALSE
+                                AND e.is_free = FALSE
                 AND ts.tap_count > 0
 
               ORDER BY
