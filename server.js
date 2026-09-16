@@ -1606,6 +1606,9 @@ if (
   command ===
   "/start"
 ) {
+  await mysteryScheduler.subscribe(
+  message
+);
   await telegramApi(
     "sendMessage",
     {
@@ -10644,7 +10647,9 @@ await mysteryScheduler.ensureSchema();
     );
 
   startWorkers();
+  mysteryScheduler.start();
 }
+
 
 /* =========================================================
    GRACEFUL SHUTDOWN
@@ -10705,6 +10710,7 @@ async function shutdown(
   }
 
   try {
+    mysteryScheduler.stop();
     await pool.end();
   } catch (
     error
