@@ -166,36 +166,7 @@ async function mnemonicToSignerKeyPair(words) {
       : "bip39-address-verified",
   };
 }
-  const tonValid = await mnemonicValidate(words);
-
-  if (tonValid) {
-    return {
-      keyPair: await mnemonicToPrivateKey(words),
-      mnemonicType: "ton",
-    };
-  }
-
-  const phrase = words.join(" ");
-
-  const bip39Valid = bip39.validateMnemonic(
-    phrase,
-    bip39.wordlists.english,
-  );
-
-  if (!bip39Valid) {
-    throw new Error(
-      "TREASURY_MNEMONIC is neither a valid TON mnemonic nor a valid BIP39 mnemonic",
-    );
-  }
-
-  const seed = bip39.mnemonicToSeedSync(phrase);
-  const ed25519Seed = deriveSlip10Ed25519(seed, TON_BIP39_PATH);
-
-  return {
-    keyPair: keyPairFromSeed(ed25519Seed),
-    mnemonicType: "bip39",
-  };
-}
+  
 
 const DATABASE_URL = strEnv("DATABASE_URL");
 
