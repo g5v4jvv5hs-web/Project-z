@@ -10565,7 +10565,7 @@ async function start() {
   );
 
   await initDb();
-
+await mysteryScheduler.ensureSchema();
   await prepareCurrentPhase();
 
   /*
