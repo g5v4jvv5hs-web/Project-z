@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { MYSTERY_MESSAGES } from "./mysteryMessages.js";
+import { MYSTERY_MESSAGES } from "./Mysterymassage.js";
 
 const FIRST_WINDOW = Object.freeze({
   start: 9 * 60,
