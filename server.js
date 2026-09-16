@@ -9089,13 +9089,13 @@ app.get(
                   winner.rank
                 ),
 
-              displayName:
-                winner.display_name ||
-                (
-                  winner.username
-                    ? `@${winner.username}`
-                    : "Project Z User"
-                ),
+                            displayName:
+                winner.display_name &&
+                !String(
+                  winner.display_name
+                ).startsWith("@")
+                  ? winner.display_name
+                  : "Project Z Winner",
 
               prizeUsd:
                 Number(
