@@ -1297,8 +1297,11 @@ async function initializeTonWallet(){
     await loadTonLibrary();
 
     if(tonConnectUI){
-      return;
-    }
+  tonConnectUI.uiOptions = {
+    buttonRootId:"ton-connect"
+  };
+  return;
+}
 
     const nonceData =
       await getTonProofNonce();
