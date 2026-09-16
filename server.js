@@ -9410,6 +9410,421 @@ async function getTapState(
           : "Enter this phase to unlock Tap.",
   };
 }
+app.all(
+  "/api/tap-state",
+  async (
+    req,
+    res,
+    next
+  ) => {
+    const verified =
+      requireTelegramUser(
+        req,
+        res
+      );
+
+    if (
+      !verified
+    ) {
+      return;
+    }
+
+    const client =
+      await pool.connect();
+
+    try {
+      await client.query(
+        "BEGIN"
+      );
+
+      await upsertUser(
+        client,
+        verified.user
+      );
+
+      const phase =
+        await getCurrentPhase(
+          client
+        );
+
+      const state =
+        await getTapState(
+          client,
+          verified.user,
+          phase
+        );
+
+      await client.query(
+        "COMMIT"
+      );
+
+      res.json(
+        state
+      );
+    } catch (
+      error
+    ) {
+      try {
+        await client.query(
+          "ROLLBACK"
+        );
+      } catch {}
+
+      next(
+        error
+      );
+    } finally {
+      client.release();
+    }
+  }
+);
+
+
+app.post(
+  "/api/tap",
+  async (
+    req,
+    res,
+    next
+  ) => {
+    const verified =
+      requireTelegramUser(
+        req,
+        res
+      );
+
+    if (
+      !verified
+    ) {
+      return;
+    }
+
+    const requestedTaps =
+      clampInt(
+        req.body
+          ?.taps ??
+          1,
+        1,
+        TAP_BATCH_MAX
+      );
+
+    const userId =
+      Number(
+        verified.user.id
+      );
+
+    const client =
+      await pool.connect();
+
+    try {
+      await client.query(
+        "BEGIN"
+      );
+
+      await upsertUser(
+        client,
+        verified.user
+      );
+
+      const phase =
+        await getCurrentPhase(
+          client
+        );
+
+      const entry =
+        (
+          await client.query(
+            `
+              SELECT
+                id,
+                is_first_payer
+
+              FROM entries
+
+              WHERE phase_id = $1
+                AND telegram_user_id = $2
+
+              LIMIT 1
+
+              FOR UPDATE
+            `,
+            [
+              phase.id,
+              userId,
+            ]
+          )
+        ).rows[0] ||
+        null;
+
+      if (
+        !entry ||
+        phase.status !==
+          "open"
+      ) {
+        const state =
+          await getTapState(
+            client,
+            verified.user,
+            phase
+          );
+
+        await client.query(
+          "COMMIT"
+        );
+
+        return res
+          .status(
+            403
+          )
+          .json({
+            ...state,
+
+            accepted:
+              0,
+
+            rateLimited:
+              false,
+          });
+      }
+
+      /*
+        First Z may still animate in the UI,
+        but no tap is ever recorded here.
+      */
+      if (
+        entry.is_first_payer
+      ) {
+        const state =
+          await getTapState(
+            client,
+            verified.user,
+            phase
+          );
+
+        await client.query(
+          "COMMIT"
+        );
+
+        return res.json({
+          ...state,
+
+          accepted:
+            0,
+
+          rateLimited:
+            false,
+        });
+      }
+
+      const displayName =
+        tapPublicDisplayName(
+          verified.user
+        );
+
+      const photoUrl =
+        tapPublicPhotoUrl(
+          verified.user
+        );
+
+      const score =
+        (
+          await client.query(
+            `
+              INSERT INTO tap_scores (
+                phase_id,
+                entry_id,
+                telegram_user_id,
+                display_name,
+                photo_url
+              )
+
+              VALUES (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5
+              )
+
+              ON CONFLICT (
+                phase_id,
+                telegram_user_id
+              )
+
+              DO UPDATE SET
+                entry_id =
+                  EXCLUDED.entry_id,
+
+                display_name =
+                  EXCLUDED.display_name,
+
+                photo_url =
+                  COALESCE(
+                    EXCLUDED.photo_url,
+                    tap_scores.photo_url
+                  ),
+
+                updated_at =
+                  NOW()
+
+              RETURNING *
+            `,
+            [
+              phase.id,
+              entry.id,
+              userId,
+              displayName,
+              photoUrl,
+            ]
+          )
+        ).rows[0];
+
+      const nowMs =
+        Date.now();
+
+      const windowStartedMs =
+        score
+          .rate_window_started_at
+          ? new Date(
+              score.rate_window_started_at
+            ).getTime()
+          : 0;
+
+      const sameWindow =
+        Number.isFinite(
+          windowStartedMs
+        ) &&
+        windowStartedMs >
+          0 &&
+        nowMs -
+          windowStartedMs >=
+          0 &&
+        nowMs -
+          windowStartedMs <
+          TAP_RATE_WINDOW_MS;
+
+      const alreadyUsed =
+        sameWindow
+          ? Number(
+              score
+                .rate_window_taps ||
+              0
+            )
+          : 0;
+
+      const remaining =
+        Math.max(
+          0,
+          TAP_MAX_PER_WINDOW -
+            alreadyUsed
+        );
+
+      const accepted =
+        Math.min(
+          requestedTaps,
+          remaining
+        );
+
+      if (
+        accepted >
+        0
+      ) {
+        await client.query(
+          `
+            UPDATE tap_scores
+
+            SET
+              tap_count =
+                tap_count + $2,
+
+              first_tap_at =
+                COALESCE(
+                  first_tap_at,
+                  NOW()
+                ),
+
+              last_tap_at =
+                NOW(),
+
+              rate_window_started_at =
+                CASE
+                  WHEN $3
+                  THEN
+                    rate_window_started_at
+                  ELSE
+                    NOW()
+                END,
+
+              rate_window_taps =
+                CASE
+                  WHEN $3
+                  THEN
+                    rate_window_taps + $2
+                  ELSE
+                    $2
+                END,
+
+              display_name =
+                $4,
+
+              photo_url =
+                COALESCE(
+                  $5,
+                  photo_url
+                ),
+
+              updated_at =
+                NOW()
+
+            WHERE id = $1
+          `,
+          [
+            score.id,
+            accepted,
+            sameWindow,
+            displayName,
+            photoUrl,
+          ]
+        );
+      }
+
+      const state =
+        await getTapState(
+          client,
+          verified.user,
+          phase
+        );
+
+      await client.query(
+        "COMMIT"
+      );
+
+      res.json({
+        ...state,
+
+        accepted,
+
+        rateLimited:
+          accepted <
+          requestedTaps,
+      });
+    } catch (
+      error
+    ) {
+      try {
+        await client.query(
+          "ROLLBACK"
+        );
+      } catch {}
+
+      next(
+        error
+      );
+    } finally {
+      client.release();
+    }
+  }
+);
 app.post(
   "/api/attach-referral",
   async (
