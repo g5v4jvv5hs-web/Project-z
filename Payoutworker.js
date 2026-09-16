@@ -721,7 +721,9 @@ async function verifyTreasuryJettonWallet() {
     await getJettonWalletAddress(
       treasuryAddress,
     );
-
+  console.log(
+    `Treasury USDT jetton wallet derived: ${normalizeAddress(jettonWallet)}`,
+  );
   const state =
     await getTreasuryJettonWalletState(
       jettonWallet,
