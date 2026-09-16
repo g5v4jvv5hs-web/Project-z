@@ -7077,7 +7077,7 @@ async function finalizePhaseById(
             1_000_000
         );
 
-      const winner =
+            const winner =
         (
           await client.query(
             `
@@ -7088,6 +7088,7 @@ async function finalizePhaseById(
                 rank,
                 prize_stars,
                 is_first_payer,
+                is_top_tapper,
                 prize_usd,
                 prize_stars_equiv
               )
@@ -7100,7 +7101,8 @@ async function finalizePhaseById(
                 $5,
                 $6,
                 $7,
-                $8
+                $8,
+                $9
               )
 
               RETURNING *
@@ -7119,6 +7121,16 @@ async function finalizePhaseById(
 
               Boolean(
                 entry.is_first_payer
+              ),
+
+              Boolean(
+                topTapperEntry &&
+                Number(
+                  entry.id
+                ) ===
+                  Number(
+                    topTapperEntry.id
+                  )
               ),
 
               prizeUsd,
