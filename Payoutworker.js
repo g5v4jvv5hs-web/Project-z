@@ -623,7 +623,7 @@ async function getJettonWalletAddress(
             beginCell()
               .storeAddress(
                 Address.parse(
-                  ownerAddress,
+                  String(ownerAddress),
                 ),
               )
               .endCell(),
@@ -640,7 +640,7 @@ async function getJettonWalletData(
   const result =
     await tonClient.runMethod(
       Address.parse(
-        jettonWalletAddress,
+        String(jettonWalletAddress),
       ),
       "get_wallet_data",
     );
