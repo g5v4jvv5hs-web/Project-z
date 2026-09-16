@@ -993,7 +993,9 @@ async function api(path,options={}){
           })
         }
       );
+  
   }catch(error){
+    tapPending += taps;
     console.error(
       "Tap request error:",
       error
