@@ -3070,7 +3070,6 @@ function showPrivacy(){
 /* =========================================================
    SUPPORT
 ========================================================= */
-
 function showSupport(){
   document
     .getElementById(
@@ -3107,29 +3106,164 @@ function showSupport(){
           </span>
         </div>
 
+        <div class="subtitle">
+          Send your message directly to Project Z support.
+        </div>
+
         <div class="card">
 
-          <div class="info">
-            For account,
-            payment or participation questions,
-            contact the official Project Z support channel.
-          </div>
+          <textarea
+            id="support-message"
+            maxlength="2000"
+            placeholder="Write your message here..."
+            style="
+              width:100%;
+              min-height:150px;
+              resize:vertical;
+              border:1px solid var(--line);
+              border-radius:14px;
+              background:#080a10;
+              color:#f7f7fa;
+              padding:14px;
+              font-family:inherit;
+              font-size:14px;
+              line-height:1.6;
+              outline:none;
+            "
+          ></textarea>
 
           <button
+            id="support-send-btn"
             class="primary"
-            onclick="
-              showToast(
-                'Official support contact will be added here.'
-              )
+            style="
+              margin-top:16px;
             "
+            onclick="submitSupportMessage()"
           >
-            CONTACT SUPPORT
+            SEND MESSAGE
           </button>
+
+          <div
+            id="support-status"
+            class="notice"
+            style="
+              display:none;
+            "
+          ></div>
 
         </div>
 
       </main>
     `;
+}
+  async function submitSupportMessage(){
+  const input =
+    document.getElementById(
+      "support-message"
+    );
+
+  const button =
+    document.getElementById(
+      "support-send-btn"
+    );
+
+  const status =
+    document.getElementById(
+      "support-status"
+    );
+
+  const message =
+    String(
+      input?.value || ""
+    ).trim();
+
+  if(
+    !tg ||
+    !tg.initData
+  ){
+    showToast(
+      "Please open Project Z inside Telegram.",
+      "bad"
+    );
+
+    return;
+  }
+
+  if(
+    message.length < 3
+  ){
+    showToast(
+      "Please write a longer message.",
+      "bad"
+    );
+
+    return;
+  }
+
+  try{
+    if(button){
+      button.disabled = true;
+      button.textContent =
+        "SENDING...";
+    }
+
+    const result =
+      await api(
+        "/api/support/message",
+        {
+          method:"POST",
+          body:
+            JSON.stringify({
+              initData:
+                tg.initData,
+              message
+            })
+        }
+      );
+
+    if(input){
+      input.value = "";
+    }
+
+    if(status){
+      status.style.display =
+        "block";
+
+      status.innerHTML = `
+        Message sent successfully.
+        <br>
+        Ticket #${result.ticketId}
+      `;
+    }
+
+    showToast(
+      "Support message sent.",
+      "good"
+    );
+
+  }catch(error){
+    if(status){
+      status.style.display =
+        "block";
+
+      status.textContent =
+        error.message ||
+        "Unable to send support message.";
+    }
+
+    showToast(
+      error.message ||
+      "Unable to send support message.",
+      "bad"
+    );
+
+  }finally{
+    if(button){
+      button.disabled = false;
+      button.textContent =
+        "SEND MESSAGE";
+    }
+  }
 }
 
 /* =========================================================
