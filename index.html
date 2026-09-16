@@ -2160,6 +2160,19 @@ async function showHome(){
 
   updateCountdown();
 }
+    const tapZ =
+    document.getElementById(
+      "tap-z"
+    );
+
+  if(tapZ){
+    tapZ.addEventListener(
+      "click",
+      handleTapZ
+    );
+  }
+
+  await loadTapState();
 
 /* =========================================================
    PLAY
