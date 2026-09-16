@@ -86,35 +86,8 @@ function safeError(error) {
   function validateBip39Mnemonic(words) {
   return validateMnemonic(words.join(" "), BIP39_WORDLIST);
 }
-  if (![12, 24].includes(words.length)) return false;
-
-  const normalized = words.map((word) =>
-    word.normalize("NFKD").toLowerCase()
-  );
-
-  const indexes = normalized.map((word) =>
-    BIP39_WORDLIST.indexOf(word)
-  );
-
-  if (indexes.some((index) => index < 0)) return false;
-
-  const bits = indexes
-    .map((index) => index.toString(2).padStart(11, "0"))
-    .join("");
-
-  const checksumLength = bits.length / 33;
-  const entropyBits = bits.slice(0, bits.length - checksumLength);
-  const checksumBits = bits.slice(bits.length - checksumLength);
-
-  const entropy = Buffer.from(
-    entropyBits.match(/.{8}/g).map((byte) => parseInt(byte, 2))
-  );
-
-  const hashBits = [...createHash("sha256").update(entropy).digest()]
-    .map((byte) => byte.toString(2).padStart(8, "0"))
-    .join("");
-
-  return checksumBits === hashBits.slice(0, checksumLength);
+   function validateBip39Mnemonic(words) {
+  return validateMnemonic(words.join(" "), BIP39_WORDLIST);
 }
   return String(error?.message || error || "Unknown error").slice(0, 500);
 }
