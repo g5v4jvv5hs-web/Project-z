@@ -232,6 +232,39 @@ button:disabled{
 .tap-leaderboard{
   margin-top:10px;
 }
+  .tap-z-particle{
+  position:absolute;
+  left:50%;
+  top:50%;
+  z-index:10;
+  pointer-events:none;
+  color:var(--gold);
+  font-size:15px;
+  font-weight:950;
+  text-shadow:0 0 12px rgba(245,200,76,.55);
+  animation:tapZParticle .7s ease-out forwards;
+}
+
+@keyframes tapZParticle{
+  0%{
+    opacity:1;
+    transform:
+      translate(-50%,-50%)
+      scale(.75)
+      rotate(0deg);
+  }
+
+  100%{
+    opacity:0;
+    transform:
+      translate(
+        calc(-50% + var(--tx)),
+        calc(-50% + var(--ty))
+      )
+      scale(1.2)
+      rotate(var(--rot));
+  }
+}
 /* BUTTONS */
 
 .primary{
