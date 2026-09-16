@@ -9241,7 +9241,7 @@ const TAP_RATE_WINDOW_MS =
   1000;
 
 const TAP_MAX_PER_WINDOW =
-  18;
+  10;
 
 const TAP_BATCH_MAX =
   8;
