@@ -2553,7 +2553,61 @@ CREATE TABLE IF NOT EXISTS support_messages (
   replied_at
     TIMESTAMPTZ
 );
+        CREATE TABLE IF NOT EXISTS tap_scores (
+          id BIGSERIAL PRIMARY KEY,
 
+          phase_id BIGINT
+            NOT NULL
+            REFERENCES phases(id)
+            ON DELETE CASCADE,
+
+          entry_id BIGINT
+            NOT NULL
+            REFERENCES entries(id)
+            ON DELETE CASCADE,
+
+          telegram_user_id BIGINT
+            NOT NULL,
+
+          tap_count BIGINT
+            NOT NULL
+            DEFAULT 0
+            CHECK (
+              tap_count >= 0
+            ),
+
+          first_tap_at
+            TIMESTAMPTZ,
+
+          last_tap_at
+            TIMESTAMPTZ,
+
+          rate_window_started_at
+            TIMESTAMPTZ,
+
+          rate_window_taps INTEGER
+            NOT NULL
+            DEFAULT 0,
+
+          created_at
+            TIMESTAMPTZ
+            NOT NULL
+            DEFAULT NOW(),
+
+          updated_at
+            TIMESTAMPTZ
+            NOT NULL
+            DEFAULT NOW(),
+
+          UNIQUE (
+            phase_id,
+            telegram_user_id
+          ),
+
+          UNIQUE (
+            entry_id
+          )
+        );
         CREATE TABLE IF NOT EXISTS audit_logs (
           id BIGSERIAL PRIMARY KEY,
 
