@@ -2275,11 +2275,9 @@ async function showHome(){
       "tap-z"
     );
 
-  if(tapZ){
-    tapZ.addEventListener(
-      "click",
-      handleTapZ
-    );
+    if(tapZ){
+    tapZ.onclick =
+      handleTapZ;
   }
 
   await loadTapState();
