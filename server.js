@@ -2635,6 +2635,21 @@ CREATE TABLE IF NOT EXISTS support_messages (
     ----------------------------------------------------- */
 
     const alters = [
+            `ALTER TABLE tap_scores
+       ADD COLUMN IF NOT EXISTS display_name TEXT`,
+
+      `ALTER TABLE tap_scores
+       ADD COLUMN IF NOT EXISTS photo_url TEXT`,
+
+      `ALTER TABLE winners
+       ADD COLUMN IF NOT EXISTS is_top_tapper BOOLEAN NOT NULL DEFAULT FALSE`,
+
+      `CREATE INDEX IF NOT EXISTS tap_scores_phase_rank_idx
+       ON tap_scores (
+         phase_id,
+         tap_count DESC,
+         last_tap_at ASC
+       )`,
       `ALTER TABLE users
        ADD COLUMN IF NOT EXISTS display_name TEXT`,
 
