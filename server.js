@@ -9244,7 +9244,7 @@ const TAP_MAX_PER_WINDOW =
   10;
 
 const TAP_BATCH_MAX =
-  8;
+  5;
 
 
 function tapPublicDisplayName(
