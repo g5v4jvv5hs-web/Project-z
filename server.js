@@ -1596,7 +1596,22 @@ async function handleSupportTelegramMessage(
     text
       .split(/\s+/)[0]
       ?.split("@")[0];
+if (
+  command ===
+  "/start"
+) {
+  await telegramApi(
+    "sendMessage",
+    {
+      chat_id:
+        message.chat.id,
+      text:
+        "Z is online👁️",
+    }
+  );
 
+  return true;
+}
   if (
     command ===
     "/myid"
