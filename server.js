@@ -8950,7 +8950,7 @@ app.get(
    AUTHENTICATED USER ROUTES
 ========================================================= */
 
-app.get(
+app.all(
   "/api/user-status",
   async (
     req,
