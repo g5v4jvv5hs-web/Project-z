@@ -8908,18 +8908,18 @@ app.get(
 
         entryUsdDisplay:
           ENTRY_USD_DISPLAY,
-        participantList:
-  participantRows.map(
-    (participant) => ({
-      displayName:
-        participant.display_name ||
-        (
-          participant.username
-            ? `@${participant.username}`
-            : "Participant"
-        ),
-    })
-  ),
+                participantList:
+          participantRows.map(
+            (participant) => ({
+              displayName:
+                participant.display_name &&
+                !String(
+                  participant.display_name
+                ).startsWith("@")
+                  ? participant.display_name
+                  : "Participant",
+            })
+          ),
 
         drawCommitHash:
           phase.draw_commit_hash ||
