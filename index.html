@@ -1410,6 +1410,9 @@ async function attachReferralFromTelegram(){
         .start_param ||
       ""
     ).trim();
+  if(!code){
+  return;
+}
 
   const key =
     `pz_ref_attached_${code}`;
