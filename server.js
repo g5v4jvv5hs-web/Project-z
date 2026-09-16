@@ -3000,7 +3000,7 @@ async function upsertUser(
   const result =
     await client.query(
       `
-        INSERT INTO users (
+                INSERT INTO users (
           telegram_id,
           username,
           first_name,
@@ -3008,6 +3008,7 @@ async function upsertUser(
           language_code,
           is_premium,
           display_name,
+          photo_url,
           updated_at
         )
         VALUES (
@@ -3018,6 +3019,7 @@ async function upsertUser(
           $5,
           $6,
           $7,
+          $8,
           NOW()
         )
 
@@ -3044,6 +3046,9 @@ async function upsertUser(
           display_name =
             EXCLUDED.display_name,
 
+          photo_url =
+            EXCLUDED.photo_url,
+
           updated_at =
             NOW()
 
@@ -3057,6 +3062,7 @@ async function upsertUser(
         languageCode,
         isPremium,
         displayName,
+        photoUrl,
       ]
     );
 
