@@ -9223,28 +9223,9 @@ const TAP_BATCH_MAX =
 function tapPublicDisplayName(
   telegramUser
 ) {
-  const name =
-    [
-      telegramUser
-        ?.first_name,
-
-      telegramUser
-        ?.last_name,
-    ]
-      .filter(
-        Boolean
-      )
-      .join(
-        " "
-      )
-      .trim();
-
-  return name
-    ? name.slice(
-        0,
-        80
-      )
-    : "Z Player";
+  return displayNameFromTelegramUser(
+    telegramUser
+  );
 }
 
 
