@@ -2523,8 +2523,8 @@ async function showReferral(){
         } / 2 qualifying referrals`;
 
     window.currentReferralLink =
-      status.referralLink ||
-      "";
+  status.referral?.link ||
+  "";
   }catch(error){
     document
       .getElementById(
