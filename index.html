@@ -2507,7 +2507,7 @@ async function showReferral(){
         "referral-link"
       )
       .textContent =
-        status.referralLink ||
+        status.referral?.link ||
         "Referral link unavailable.";
 
     document
