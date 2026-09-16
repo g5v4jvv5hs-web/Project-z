@@ -2623,7 +2623,10 @@ CREATE TABLE IF NOT EXISTS support_messages (
          tap_count DESC,
          last_tap_at ASC
        )`,
-      `      `ALTER TABLE users
+      `          `ALTER TABLE users
+       ADD COLUMN IF NOT EXISTS display_name TEXT`,
+
+      `ALTER TABLE users
        ADD COLUMN IF NOT EXISTS photo_url TEXT`,
 
       `ALTER TABLE users
