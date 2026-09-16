@@ -116,6 +116,56 @@ function deriveSlip10Ed25519(seed, pathSegments) {
 }
 
 async function mnemonicToSignerKeyPair(words) {
+  const normalizedWords = words.map((word) =>
+    String(word)
+      .normalize("NFKD")
+      .replace(/[\u200B-\u200D\uFEFF]/g, "")
+      .trim()
+      .toLowerCase(),
+  );
+
+  const tonValid = await mnemonicValidate(normalizedWords);
+
+  if (tonValid) {
+    return {
+      keyPair: await mnemonicToPrivateKey(normalizedWords),
+      mnemonicType: "ton",
+    };
+  }
+
+  const phrase = normalizedWords.join(" ");
+  const wordlist = bip39.wordlists.english;
+
+  const invalidPositions = normalizedWords
+    .map((word, index) =>
+      wordlist.includes(word) ? null : index + 1,
+    )
+    .filter((value) => value !== null);
+
+  if (invalidPositions.length) {
+    throw new Error(
+      `TREASURY_MNEMONIC contains invalid word(s) at position(s): ${invalidPositions.join(", ")}`,
+    );
+  }
+
+  const checksumValid = bip39.validateMnemonic(
+    phrase,
+    wordlist,
+  );
+
+  const seed = bip39.mnemonicToSeedSync(phrase);
+  const ed25519Seed = deriveSlip10Ed25519(
+    seed,
+    TON_BIP39_PATH,
+  );
+
+  return {
+    keyPair: keyPairFromSeed(ed25519Seed),
+    mnemonicType: checksumValid
+      ? "bip39"
+      : "bip39-address-verified",
+  };
+}
   const tonValid = await mnemonicValidate(words);
 
   if (tonValid) {
