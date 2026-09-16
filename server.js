@@ -864,7 +864,13 @@ const pool =
     connectionTimeoutMillis:
       10_000,
   });
-
+const mysteryScheduler =
+  createMysteryScheduler({
+    pool,
+    telegramApi,
+    timeZone:
+      "Europe/Moscow",
+  });
 
 pool.on(
   "error",
