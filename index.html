@@ -1242,7 +1242,7 @@ async function verifyConnectedWallet(wallet){
         ">
           ${
             escapeHtml(
-              result.walletAddress
+              result.address || account.address
             )
           }
         </span>
