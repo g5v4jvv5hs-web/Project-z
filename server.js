@@ -1368,7 +1368,7 @@ function verifyInitData(
       age <
         -60 ||
       age >
-        86_400
+        INIT_DATA_MAX_AGE_SECONDS
     ) {
       return null;
     }
