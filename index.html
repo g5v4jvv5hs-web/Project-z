@@ -1026,7 +1026,20 @@ async function api(path,options={}){
           })
         }
       );
-  
+      const accepted =
+      Number(
+        tapState?.accepted ?? taps
+      );
+
+    const remaining =
+      Math.max(
+        0,
+        taps - accepted
+      );
+
+    if(remaining > 0){
+      tapPending += remaining;
+    }
   }catch(error){
     tapPending += taps;
     console.error(
