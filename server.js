@@ -1573,6 +1573,142 @@ async function createSupportTicket(
     ticketId,
   };
 }
+async function handleSupportTelegramMessage(
+  message
+) {
+  const chatId =
+    String(
+      message?.chat?.id ?? ""
+    );
+
+  const text =
+    String(
+      message?.text || ""
+    ).trim();
+
+  if (
+    !chatId
+  ) {
+    return false;
+  }
+
+  const command =
+    text
+      .split(/\s+/)[0]
+      ?.split("@")[0];
+
+  if (
+    command ===
+    "/myid"
+  ) {
+    await telegramApi(
+      "sendMessage",
+      {
+        chat_id:
+          message.chat.id,
+
+        text:
+          `Your Telegram chat ID: ${message.chat.id}`,
+      }
+    );
+
+    return true;
+  }
+
+  if (
+    !SUPPORT_ADMIN_CHAT_ID ||
+    chatId !==
+      String(
+        SUPPORT_ADMIN_CHAT_ID
+      )
+  ) {
+    return false;
+  }
+
+  if (
+    !text ||
+    !message
+      ?.reply_to_message
+      ?.message_id
+  ) {
+    return false;
+  }
+
+  const notificationMessageId =
+    Number(
+      message
+        .reply_to_message
+        .message_id
+    );
+
+  const ticketResult =
+    await pool.query(
+      `
+        SELECT
+          id,
+          telegram_user_id
+        FROM support_messages
+        WHERE
+          admin_notification_message_id = $1
+        ORDER BY id DESC
+        LIMIT 1
+      `,
+      [
+        notificationMessageId,
+      ]
+    );
+
+  if (
+    ticketResult.rows.length ===
+    0
+  ) {
+    return false;
+  }
+
+  const ticket =
+    ticketResult.rows[0];
+
+  const replyText =
+    text.slice(
+      0,
+      2000
+    );
+
+  const sentMessage =
+    await telegramApi(
+      "sendMessage",
+      {
+        chat_id:
+          Number(
+            ticket.telegram_user_id
+          ),
+
+        text:
+          `PROJECT Z SUPPORT\n` +
+          `Ticket #${ticket.id}\n\n` +
+          replyText,
+      }
+    );
+
+  await pool.query(
+    `
+      UPDATE support_messages
+      SET
+        bot_reply_message_id = $1,
+        admin_reply_text = $2,
+        status = 'answered',
+        replied_at = NOW()
+      WHERE id = $3
+    `,
+    [
+      sentMessage.message_id,
+      replyText,
+      ticket.id,
+    ]
+  );
+
+  return true;
+}
 async function telegramApi(
   method,
   body = {}
