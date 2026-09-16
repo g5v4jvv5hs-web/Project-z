@@ -961,6 +961,63 @@ async function api(path,options={}){
 
   renderTapState();
 }
+  async function flushTapBatch(){
+  if(
+    tapRequestInFlight ||
+    tapPending <= 0 ||
+    !tapState?.eligible ||
+    !tg?.initData
+  ){
+    return;
+  }
+
+  const taps =
+    Math.min(
+      5,
+      tapPending
+    );
+
+  tapPending -= taps;
+  tapRequestInFlight = true;
+
+  renderTapState();
+
+  try{
+    tapState =
+      await api(
+        "/api/tap",
+        {
+          method:"POST",
+          body:JSON.stringify({
+            taps
+          })
+        }
+      );
+  }catch(error){
+    console.error(
+      "Tap request error:",
+      error
+    );
+  }finally{
+    tapRequestInFlight = false;
+    renderTapState();
+
+    if(
+      tapPending > 0 &&
+      tapState?.eligible
+    ){
+      clearTimeout(
+        tapFlushTimer
+      );
+
+      tapFlushTimer =
+        setTimeout(
+          flushTapBatch,
+          550
+        );
+    }
+  }
+}
 
 /* =========================================================
    LOAD DATA
