@@ -2172,6 +2172,15 @@ async function showHome(){
   }
 
   await loadTapState();
+    clearInterval(
+    tapPollTimer
+  );
+
+  tapPollTimer =
+    setInterval(
+      loadTapState,
+      5000
+    );
 }
     
 
