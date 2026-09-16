@@ -9044,9 +9044,11 @@ app.get(
 
                 w.created_at,
 
-                u.display_name,
+                  u.display_name,
 
-                u.username
+                u.username,
+
+                u.photo_url
 
               FROM winners w
 
