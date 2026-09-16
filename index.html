@@ -821,6 +821,125 @@ async function api(path,options={}){
 
   return data;
 }
+  function renderTapState(){
+  const status =
+    document.getElementById(
+      "tap-status"
+    );
+
+  const count =
+    document.getElementById(
+      "tap-count"
+    );
+
+  const leaderboard =
+    document.getElementById(
+      "tap-leaderboard"
+    );
+
+  if(
+    !status ||
+    !count ||
+    !leaderboard
+  ){
+    return;
+  }
+
+  if(!tapState){
+    status.textContent =
+      tg?.initData
+        ? "Loading Tap..."
+        : "Open Project Z inside Telegram to use Tap.";
+
+    count.textContent =
+      "0 TAPS";
+
+    leaderboard.innerHTML =
+      "";
+
+    return;
+  }
+
+  status.textContent =
+    tapState.message ||
+    "Tap Z.";
+
+  count.textContent =
+    `${Number(
+      tapState.myTaps || 0
+    ) + tapPending} TAPS`;
+
+  const top3 =
+    Array.isArray(
+      tapState.top3
+    )
+      ? tapState.top3
+      : [];
+
+  leaderboard.innerHTML =
+    top3.length === 0
+      ? `
+        <div class="tap-status">
+          No taps yet.
+        </div>
+      `
+      : top3
+          .map(function(item){
+            return `
+              <div style="
+                display:flex;
+                align-items:center;
+                gap:9px;
+                padding:7px 0;
+                border-bottom:1px solid rgba(255,255,255,.06);
+              ">
+                <div style="
+                  width:24px;
+                  font-weight:900;
+                  color:var(--gold);
+                ">
+                  #${Number(item.rank || 0)}
+                </div>
+
+                ${
+                  item.photoUrl
+                    ? `
+                      <img
+                        src="${escapeHtml(item.photoUrl)}"
+                        alt=""
+                        style="
+                          width:30px;
+                          height:30px;
+                          border-radius:50%;
+                          object-fit:cover;
+                        "
+                      >
+                    `
+                    : ""
+                }
+
+                <div style="
+                  flex:1;
+                  text-align:left;
+                  font-size:13px;
+                ">
+                  ${escapeHtml(
+                    item.displayName ||
+                    "Z Player"
+                  )}
+                </div>
+
+                <div style="
+                  font-weight:900;
+                  font-size:13px;
+                ">
+                  ${Number(item.taps || 0)}
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+}
 
 /* =========================================================
    LOAD DATA
