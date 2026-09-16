@@ -1,6 +1,30 @@
 import { Pool } from "pg";
-import { mnemonicToPrivateKey, mnemonicValidate } from "@ton/crypto";
+import { createHmac } from "node:crypto";
 import {
+  mnemonicToSeedSync,
+  validateMnemonic,
+  wordlists,
+} from "bip39";
+import {
+  keyPairFromSeed,
+  mnemonicToPrivateKey,
+  mnemonicValidate,
+} from "@ton/crypto";
+import {
+  Address,
+  beginCell,
+  toNano,
+} from "@ton/core";
+import {
+  TonClient,
+  WalletContractV4,
+  WalletContractV5R1,
+  SendMode,
+  internal,
+} from "@ton/ton";
+
+const TON_BIP39_DERIVATION_PATH = "m/44'/607'/0'";
+const BIP39_WORDLIST = wordlists.english;
   Address,
   beginCell,
   toNano,
@@ -57,6 +81,39 @@ function sameAddress(a, b) {
 }
 
 function safeError(error) {
+    return String(error?.message || error || "Unknown error").slice(0, 500);
+}
+  function validateBip39Mnemonic(words) {
+  if (![12, 24].includes(words.length)) return false;
+
+  const normalized = words.map((word) =>
+    word.normalize("NFKD").toLowerCase()
+  );
+
+  const indexes = normalized.map((word) =>
+    mnemonicWordList.indexOf(word)
+  );
+
+  if (indexes.some((index) => index < 0)) return false;
+
+  const bits = indexes
+    .map((index) => index.toString(2).padStart(11, "0"))
+    .join("");
+
+  const checksumLength = bits.length / 33;
+  const entropyBits = bits.slice(0, bits.length - checksumLength);
+  const checksumBits = bits.slice(bits.length - checksumLength);
+
+  const entropy = Buffer.from(
+    entropyBits.match(/.{8}/g).map((byte) => parseInt(byte, 2))
+  );
+
+  const hashBits = [...createHash("sha256").update(entropy).digest()]
+    .map((byte) => byte.toString(2).padStart(8, "0"))
+    .join("");
+
+  return checksumBits === hashBits.slice(0, checksumLength);
+}
   return String(error?.message || error || "Unknown error").slice(0, 500);
 }
 
