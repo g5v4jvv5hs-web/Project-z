@@ -9110,6 +9110,9 @@ app.get(
                 ).startsWith("@")
                   ? winner.display_name
                   : "Project Z Winner",
+                            photoUrl:
+                winner.photo_url ||
+                null,
 
               prizeUsd:
                 Number(
