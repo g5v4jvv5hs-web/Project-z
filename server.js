@@ -2993,7 +2993,10 @@ async function upsertUser(
     displayNameFromTelegramUser(
       telegramUser
     );
-
+  const photoUrl =
+    tapPublicPhotoUrl(
+      telegramUser
+    );
   const result =
     await client.query(
       `
