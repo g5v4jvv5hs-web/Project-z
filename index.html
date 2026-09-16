@@ -2509,7 +2509,7 @@ async function showReferral(){
       .textContent =
         `${
           Number(
-            status.referralProgress ||
+            status.referral?.successfulPaidReferrals ||
             0
           )
         } / 2 qualifying referrals`;
