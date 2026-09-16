@@ -1046,13 +1046,24 @@ async function api(path,options={}){
     if(remaining > 0){
       tapPending += remaining;
     }
-  }catch(error){
-    tapPending += taps;
+    }catch(error){
+    if(error?.status === 403){
+      tapPending = 0;
+
+      if(tapState){
+        tapState.eligible = false;
+        tapState.message =
+          error?.data?.error ||
+          "Tap is no longer available.";
+      }
+    }else{
+      tapPending += taps;
+    }
+
     console.error(
       "Tap request error:",
       error
     );
-  }finally{
     tapRequestInFlight = false;
     renderTapState();
 
