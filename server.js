@@ -6866,16 +6866,90 @@ async function finalizePhaseById(
       }
     }
 
+        /*
+      Highest eligible tapper receives the second
+      guaranteed winner slot after First Z.
+    */
+    let topTapperEntry =
+      null;
+
+    if (
+      actualWinnerCount >
+        (
+          firstPayerEntry
+            ? 1
+            : 0
+        )
+    ) {
+      const topTapperRow =
+        (
+          await client.query(
+            `
+              SELECT
+                ts.entry_id
+
+              FROM tap_scores ts
+
+              JOIN entries e
+                ON e.id =
+                  ts.entry_id
+
+              WHERE ts.phase_id = $1
+                AND e.is_first_payer = FALSE
+                AND ts.tap_count > 0
+
+              ORDER BY
+                ts.tap_count DESC,
+                ts.last_tap_at ASC,
+                ts.id ASC
+
+              LIMIT 1
+            `,
+            [
+              phase.id,
+            ]
+          )
+        ).rows[0] ||
+        null;
+
+      if (
+        topTapperRow
+      ) {
+        topTapperEntry =
+          entries.find(
+            (entry) =>
+              Number(
+                entry.id
+              ) ===
+              Number(
+                topTapperRow.entry_id
+              )
+          ) ||
+          null;
+      }
+    }
+
     const remainingEntries =
       entries.filter(
         (entry) =>
-          !firstPayerEntry ||
-          Number(
-            entry.id
-          ) !==
+          (
+            !firstPayerEntry ||
             Number(
-              firstPayerEntry.id
-            )
+              entry.id
+            ) !==
+              Number(
+                firstPayerEntry.id
+              )
+          ) &&
+          (
+            !topTapperEntry ||
+            Number(
+              entry.id
+            ) !==
+              Number(
+                topTapperEntry.id
+              )
+          )
       );
 
     const drawnEntries =
@@ -6895,6 +6969,16 @@ async function finalizePhaseById(
     ) {
       selectedEntries.push(
         firstPayerEntry
+      );
+    }
+
+    if (
+      topTapperEntry &&
+      actualWinnerCount >
+        selectedEntries.length
+    ) {
+      selectedEntries.push(
+        topTapperEntry
       );
     }
 
