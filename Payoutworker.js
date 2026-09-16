@@ -84,6 +84,8 @@ function safeError(error) {
     return String(error?.message || error || "Unknown error").slice(0, 500);
 }
   function validateBip39Mnemonic(words) {
+  return validateMnemonic(words.join(" "), BIP39_WORDLIST);
+}
   if (![12, 24].includes(words.length)) return false;
 
   const normalized = words.map((word) =>
@@ -91,7 +93,7 @@ function safeError(error) {
   );
 
   const indexes = normalized.map((word) =>
-    mnemonicWordList.indexOf(word)
+    BIP39_WORDLIST.indexOf(word)
   );
 
   if (indexes.some((index) => index < 0)) return false;
