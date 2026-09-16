@@ -1076,11 +1076,16 @@ async function api(path,options={}){
         tapFlushTimer
       );
 
-      tapFlushTimer =
-        setTimeout(
-          flushTapBatch,
-          550
-        );
+      const retryDelay =
+  tapState?.rateLimited
+    ? 1100
+    : 550;
+
+tapFlushTimer =
+  setTimeout(
+    flushTapBatch,
+    retryDelay
+  );
     }
   }
 }
