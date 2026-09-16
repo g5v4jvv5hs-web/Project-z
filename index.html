@@ -2104,7 +2104,20 @@ async function confirmEntry(){
 
       return;
     }
+if(
+  data.alreadyEntered ===
+  true
+){
+  showToast(
+    "You already have an entry in this phase.",
+    "good"
+  );
 
+  await loadProjectData();
+  showHome();
+
+  return;
+}
     if(
       !data.invoiceLink
     ){
