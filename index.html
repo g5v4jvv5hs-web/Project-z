@@ -2285,9 +2285,22 @@ async function showHome(){
     tapPollTimer
   );
 
-  tapPollTimer =
+    tapPollTimer =
     setInterval(
-      loadTapState,
+      function(){
+        if(
+          !document.getElementById(
+            "tap-panel"
+          )
+        ){
+          clearInterval(
+            tapPollTimer
+          );
+          return;
+        }
+
+        loadTapState();
+      },
       5000
     );
 }
