@@ -693,55 +693,28 @@ function isPastMoscowDate(
 function displayNameFromTelegramUser(
   user
 ) {
-  const name =
-    [
-      user
-        ?.first_name,
+  const firstName =
+    String(
+      user?.first_name || ""
+    ).trim();
 
-      user
-        ?.last_name,
-    ]
-      .filter(
-        Boolean
-      )
-      .join(
-        " "
-      )
-      .trim();
+  const lastName =
+    String(
+      user?.last_name || ""
+    ).trim();
 
+  if(firstName){
+    const lastInitial =
+      lastName
+        ? `${lastName.charAt(0).toUpperCase()}.`
+        : "";
 
-  if (
-    name
-  ) {
-    return name.slice(
-      0,
-      120
-    );
+    return `${firstName} ${lastInitial}`
+      .trim()
+      .slice(0,80);
   }
 
-
-  if (
-    user
-      ?.username
-  ) {
-    return (
-      `@${String(
-        user.username
-      ).slice(
-        0,
-        120
-      )}`
-    );
-  }
-
-
-  return (
-    `User ${
-      user
-        ?.id ??
-      ""
-    }`
-  ).trim();
+  return "Project Z Player";
 }
 
 
