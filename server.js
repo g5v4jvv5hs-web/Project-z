@@ -9177,7 +9177,67 @@ app.post(
     }
   }
 );
+app.post(
+  "/api/support/message",
+  supportLimiter,
+  async (
+    req,
+    res,
+    next
+  ) => {
+    const verified =
+      requireTelegramUser(
+        req,
+        res
+      );
 
+    if (
+      !verified
+    ) {
+      return;
+    }
+
+    const message =
+      String(
+        req.body
+          ?.message ||
+        ""
+      ).trim();
+
+    if (
+      message.length < 3 ||
+      message.length > 2000
+    ) {
+      return res
+        .status(400)
+        .json({
+          ok: false,
+          error:
+            "Support message must be between 3 and 2000 characters.",
+        });
+    }
+
+    try {
+      const result =
+        await createSupportTicket(
+          verified.user,
+          message
+        );
+
+      res.json({
+        ok: true,
+        ticketId:
+          result.ticketId,
+      });
+    } catch (
+      error
+    ) {
+      next(
+        error
+      );
+    }
+  }
+);
 /* =========================================================
    TON CONNECT ROUTES
 ========================================================= */
@@ -9345,6 +9405,22 @@ app.post(
       const update =
         req.body ||
         {};
+      if (
+  update.message
+) {
+  const handledSupport =
+    await handleSupportTelegramMessage(
+      update.message
+    );
+
+  if (
+    handledSupport
+  ) {
+    return res.json({
+      ok: true,
+    });
+  }
+}
 
       if (
         update.pre_checkout_query
