@@ -77,7 +77,8 @@ function looksLikeUninitializedAccountError(error) {
     text.includes("account state") ||
     text.includes("cannot run get method") ||
     text.includes("cannot find") ||
-    text.includes("not found")
+        text.includes("not found") ||
+    text.includes("exit_code: -13")
   );
 }
 
