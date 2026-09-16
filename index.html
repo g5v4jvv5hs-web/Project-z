@@ -714,6 +714,11 @@ let projectData = {
 let tonConnectUI = null;
 let tonLibraryPromise = null;
 let tonVerificationInProgress = false;
+  let tapState = null;
+let tapPending = 0;
+let tapFlushTimer = null;
+let tapPollTimer = null;
+let tapRequestInFlight = false;
 
 /* =========================================================
    UI HELPERS
