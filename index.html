@@ -979,7 +979,13 @@ async function api(path,options={}){
     renderTapState();
     return;
   }
-
+  if(
+    tapPending > 0 ||
+    tapRequestInFlight
+  ){
+    renderTapState();
+    return;
+  }
   try{
     tapState =
       await api(
