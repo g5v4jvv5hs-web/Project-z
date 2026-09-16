@@ -9136,7 +9136,280 @@ app.all(
     }
   }
 );
+/* =========================================================
+   TAP COMPETITION
+========================================================= */
 
+const TAP_RATE_WINDOW_MS =
+  1000;
+
+const TAP_MAX_PER_WINDOW =
+  18;
+
+const TAP_BATCH_MAX =
+  8;
+
+
+function tapPublicDisplayName(
+  telegramUser
+) {
+  const name =
+    [
+      telegramUser
+        ?.first_name,
+
+      telegramUser
+        ?.last_name,
+    ]
+      .filter(
+        Boolean
+      )
+      .join(
+        " "
+      )
+      .trim();
+
+  return name
+    ? name.slice(
+        0,
+        80
+      )
+    : "Z Player";
+}
+
+
+function tapPublicPhotoUrl(
+  telegramUser
+) {
+  const value =
+    String(
+      telegramUser
+        ?.photo_url ||
+      ""
+    ).trim();
+
+  if (
+    !value
+  ) {
+    return null;
+  }
+
+  try {
+    const parsed =
+      new URL(
+        value
+      );
+
+    if (
+      parsed.protocol !==
+      "https:"
+    ) {
+      return null;
+    }
+
+    return value.slice(
+      0,
+      1000
+    );
+  } catch {
+    return null;
+  }
+}
+
+
+async function getTapLeaderboard(
+  client,
+  phaseId,
+  telegramUserId
+) {
+  const rows =
+    (
+      await client.query(
+        `
+          SELECT
+            ts.telegram_user_id,
+            ts.tap_count,
+            ts.display_name,
+            ts.photo_url,
+            ts.last_tap_at,
+            ts.id
+
+          FROM tap_scores ts
+
+          JOIN entries e
+            ON e.id =
+              ts.entry_id
+
+          WHERE ts.phase_id = $1
+            AND e.is_first_payer = FALSE
+            AND ts.tap_count > 0
+
+          ORDER BY
+            ts.tap_count DESC,
+            ts.last_tap_at ASC,
+            ts.id ASC
+
+          LIMIT 3
+        `,
+        [
+          phaseId,
+        ]
+      )
+    ).rows;
+
+  const isLeader =
+    rows.length > 0 &&
+    Number(
+      rows[0]
+        .telegram_user_id
+    ) ===
+      Number(
+        telegramUserId
+      );
+
+  return {
+    isLeader,
+
+    top3:
+      rows.map(
+        (
+          row,
+          index
+        ) => ({
+          rank:
+            index + 1,
+
+          displayName:
+            String(
+              row.display_name ||
+              "Z Player"
+            ).slice(
+              0,
+              80
+            ),
+
+          photoUrl:
+            row.photo_url ||
+            null,
+
+          taps:
+            Number(
+              row.tap_count ||
+              0
+            ),
+        })
+      ),
+  };
+}
+
+
+async function getTapState(
+  client,
+  telegramUser,
+  phase
+) {
+  const userId =
+    Number(
+      telegramUser.id
+    );
+
+  const entry =
+    (
+      await client.query(
+        `
+          SELECT
+            id,
+            is_first_payer
+
+          FROM entries
+
+          WHERE phase_id = $1
+            AND telegram_user_id = $2
+
+          LIMIT 1
+        `,
+        [
+          phase.id,
+          userId,
+        ]
+      )
+    ).rows[0] ||
+    null;
+
+  const score =
+    (
+      await client.query(
+        `
+          SELECT
+            tap_count
+
+          FROM tap_scores
+
+          WHERE phase_id = $1
+            AND telegram_user_id = $2
+
+          LIMIT 1
+        `,
+        [
+          phase.id,
+          userId,
+        ]
+      )
+    ).rows[0] ||
+    null;
+
+  const leaderboard =
+    await getTapLeaderboard(
+      client,
+      phase.id,
+      userId
+    );
+
+  const firstZ =
+    Boolean(
+      entry
+        ?.is_first_payer
+    );
+
+  const eligible =
+    Boolean(
+      entry
+    ) &&
+    !firstZ &&
+    phase.status ===
+      "open";
+
+  return {
+    phaseId:
+      Number(
+        phase.id
+      ),
+
+    eligible,
+
+    firstZ,
+
+    myTaps:
+      Number(
+        score
+          ?.tap_count ||
+        0
+      ),
+
+    top3:
+      leaderboard.top3,
+
+    isLeader:
+      leaderboard.isLeader,
+
+    message:
+      firstZ
+        ? "First Z secured. You’re already in."
+        : eligible
+          ? "Tap Z. Finish #1 to secure a winner spot."
+          : "Enter this phase to unlock Tap.",
+  };
+}
 app.post(
   "/api/attach-referral",
   async (
