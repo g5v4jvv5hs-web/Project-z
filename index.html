@@ -1021,6 +1021,15 @@ async function api(path,options={}){
   }
 }
   function handleTapZ(){
+      if(
+    !tapState ||
+    (
+      !tapState.eligible &&
+      !tapState.firstZ
+    )
+  ){
+    return;
+  }
   const letter =
     document.getElementById(
       "tap-z-letter"
