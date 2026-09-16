@@ -940,6 +940,27 @@ async function api(path,options={}){
           })
           .join("");
 }
+  async function loadTapState(){
+  if(!tg?.initData){
+    tapState = null;
+    renderTapState();
+    return;
+  }
+
+  try{
+    tapState =
+      await api(
+        "/api/tap-state"
+      );
+  }catch(error){
+    console.error(
+      "Tap state loading error:",
+      error
+    );
+  }
+
+  renderTapState();
+}
 
 /* =========================================================
    LOAD DATA
